@@ -1,0 +1,3 @@
+#+TITLE: Divine Is Not Evil — Modal editing in Emacs, with text objects or something close enough.
+
+Work in progress, nothing to see here.
