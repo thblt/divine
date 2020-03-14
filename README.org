@@ -10,5 +10,5 @@ Divine comes with a simple tutorial.   To get started, put Divine somewhere in y
 
 #+begin_src emacs-lisp
   (require 'divine)
-  (info "(Eintr) Preface")
+  (divine-tutorial)
 #+end_src

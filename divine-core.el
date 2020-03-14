@@ -57,7 +57,8 @@ smart selection, or one of the divine mode functions, eg
 `divine-normal-mode'.")
 
 (defcustom divine-flash-function 'divine-flash
-  "The function used to display mode changes.")
+  "The function used to display mode changes."
+  :type 'function)
 
 ;;; Variables
 
@@ -78,22 +79,38 @@ smart selection, or one of the divine mode functions, eg
   interface, this accepts 'around or 'inside, like Vim's `a' and
   `i'.")
 
-(defvar-local divine--region-ready nil
+(defvar-local divine--ready-for-operator nil
   "Whether Divine region is ready, that it, the operator can act
   over it.")
 
 ;;; Core infrastructure
 
+;;;; Control modes
+
+(define-minor-mode divine-mode
+  "Divine, a modal interface with text objects, or something
+  close enough."
+  :lighter " DivineControl"
+  (if divine-mode
+      ;; Enter
+      (progn
+        (divine--finalize)
+        (divine-choose-initial-mode))
+    ;; Leave
+      (divine--disable-modes nil)
+      (divine--finalize)))
+
+(define-globalized-minor-mode divine-global-mode divine-mode divine-mode)
+
 ;;;; Finalizers
 
-(defun divine-restore-base-state (&optional nomsg)
+(defun divine--finalize ()
   "Restore base state."
-  (interactive)
-  (setq divine--motion-scope nil
+  (setq divine--numeric-argument nil
+        divine--motion-scope nil
         divine--pending-operator nil
-        divine--ready-for-operator nil)
-  (unless nomsg
-    (divine-flash " --- ABORT ---")))
+        divine--ready-for-operator nil
+        prefix-arg nil))
 
 (defun divine-fail (&optional nomsg)
   "Signal to the user that a binding cannot do anything in that context."
@@ -116,30 +133,19 @@ smart selection, or one of the divine mode functions, eg
   "Return non-nil if the numeric argument is defined.
 
 If CONSUMED isn't nil, return a value even if the argument was
-consumed."
-  (and current-prefix-arg
-       (or consumed (not divine--numeric-argument-consumed))))
+  consumed."
+  divine--numeric-argument)
 
 (defun divine-numeric-argument (&optional noconsume)
-  "Return the current numeric argument, and consume it.  Further invocations will return nil.
+  "Return the current numeric argument, and consume it.
 
 If NOCONSUME is non-nil, the argument isn't consumed.
 
 To check for the presence of a digit argument, use
-`divine-digit-argument-p' instead."
-  (prog1
-      (unless divine--numeric-argument-consumed current-prefix-arg)
-      (setq divine--numeric-argument-consumed (not noconsume))))
-
-
-(defun divine-preserve-numeric-argument (&optional newvalue)
-  "Preserve or set the numeric argument.
-
-If NEWVALUE is not nil, the numeric argument is set to that value."
-  (setq divine--numeric-argument-consumed nil)
-  (when newvalue
-    (setq prefix-arg newvalue
-          current-prefix-arg newvalue)))
+`divine-numeric-argument-p' instead."
+  (unless divine--numeric-argument-consumed
+    (unless noconsume (setq divine--numeric-argument t))
+    current-prefix-arg))
 
 ;;;; Messages
 
@@ -153,23 +159,26 @@ If NEWVALUE is not nil, the numeric argument is set to that value."
   (let ((message
          (format
           "Divine: %s
+Controller: %s
 Active mode: %s
 Actually active modes: %s
-All known modes: %s
+Known modes: %s
 Transient mode stack: %s
 Pending operator: %s
+Ready for operator: %s
 Point and mark: (%s %s)
-Divine region usable: %s
 Emacs region active: %s
 Motion scope: %s"
           divine-version
+          divine-mode
           divine--active-mode
           (seq-filter (lambda (x) (symbol-value x)) divine--modes)
           divine--modes
           divine--transient-stack
           divine--pending-operator
+          divine--ready-for-operator
           (point) (mark)
-          (divine-has-region-p)
+
           (region-active-p)
           divine--motion-scope)))
     (message message)
@@ -268,17 +277,18 @@ The following keyword arguments are accepted.
 
 (defun divine-operator-done ()
   "Finalize the current operator."
-  (setq divine--pending-operator nil ; Clear the pending operator
-        divine--ready-for-operator nil) ; Clear the region
+  (divine--finalize)
   ;; Quit transient state, if there's one
   (when divine--transient-stack
-    (funcall (pop divine--transient-stack) t)))
+    (funcall (pop divine--transient-stack) t))
+  (divine--finalize))
 
 (defun divine-motion-done ()
   "Finalize the current motion."
-  (setq divine--ready-for-operator t)
   (when divine--pending-operator
-    (call-interactively divine--pending-operator)))
+    (setq divine--ready-for-operator t)
+    (call-interactively divine--pending-operator))
+  (divine--finalize))
 
 ;;;; Predicates
 
@@ -300,16 +310,28 @@ The following keyword arguments are accepted.
   operator."
   divine--pending-operator)
 
-(defun divine-has-prefix-argument-p ()
-  "Return non-nil if a prefix argument has been set."
-  current-prefix-arg)
-
 (defun divine-run-operator-p ()
   "Return non-nil if there's an active region an operator can
   work on."
   (and divine--ready-for-operator
        (not (eq (region-beginning)
                 (region-end)))))
+
+;;; Command definition interface
+
+(cl-defmacro divine-defcommand (name docstring &body body)
+  "Define an interactive command NAME for Divine."
+  (declare (indent defun))
+  `(defun ,name ()
+     ,docstring
+     (interactive)
+     (when (called-interactively-p)
+       (setq divine--numeric-argument-consumed nil))
+     ,@body
+     (when (and
+            (called-interactively-p)
+            (not divine--numeric-argument-consumed))
+       (setq prefix-arg current-prefix-arg))))
 
 ;;; Operator definition interface
 
@@ -324,9 +346,7 @@ BODY is the code of the operator.  It's expected to work between
 point and mark.  It can read the current prefix argument, exactly
 once, by calling `divine-argument'."
   (declare (indent defun))
-  `(defun ,name ()
-     (interactive)
-     ,docstring
+  `(divine-defcommand ,name ,docstring
      (cond
       ;; There's a region, act on it
       ((divine-run-operator-p)
@@ -334,65 +354,45 @@ once, by calling `divine-argument'."
          ,@body
          (divine-operator-done)))
       ;; No region, and nothing pending: register ourselves
-      ((not divine--pending-operator)
+      ((not (divine-has-pending-operator-p))
        (divine-flash "Pending")
+       (push-mark (point) t nil)
        (setq divine--pending-operator ',name))
-      ;; We're pending: execute default motion and wait for repetition.
+      ;; We're pending: execute default motion and wait for
+      ;; repetition.
       ((eq divine--pending-operator ',name)
-       (push-mark t)
-       (call-interactively ',motion)
-       (if (divine-run-operator-p)
-           (call-interactively ',name)
-         (divine--abort))))))
-
-(defmacro divine-defscope (name)
-  "Define the Divine scope modifier NAME."
-  (let ((enter-name (intern (format "divine-enter-%s-scope" name)))
-        (force-name (intern (format "divine-force-%s-scope" name)))
-        (pred-name (intern (format "divine-%s-scope-p" name))))
-    `(progn
-       (defun ,enter-name ()
-         ,(format "Activate Divine %s scope if no other scope is active." name)
-         (interactive)
-         (unless divine--motion-scope
-           (setq divine--motion-scope ',name)))
-       (defun ,force-name ()
-         ,(format "Activate Divine %s scope even if another scope is active." name)
-         (interactive)
-         (setq divine--motion-scope ',name))
-       (defun ,pred-name ()
-         ,(format "Return non-nil if Divine scope %s is active" name)
-         (eq divine--motion-scope ',name)))))
+       (,motion))
+      (t (divine-fail)))))
 
 ;;; Motion definition interface
-
-;;;; Macros
 
 (defmacro divine-defmotion (name docstring &rest body)
   "Define a Divine text motion NAME with doc DOCSTRING."
   (declare (indent defun))
-  `(defun ,name (arg)
-     ,docstring
-     (interactive "P")
+  `(divine-defcommand ,name ,docstring
      ,@body
      (divine-motion-done)))
 
-(defmacro divine-wrap-motion (command &optional motion)
-  "Wrap Emacs command COMMAND as a Divine text motion MOTION.
+;;; Operator definition interface
 
-If omitted or nil, MOTION is COMMAND prefixed with `divine-'."
-  (unless motion
-    (setq motion (intern (format "divine-%s" command))))
-  `(defun ,motion (arg)
-     ,(format "Divine motion wrapper around `%s', which see." command)
-     (interactive "P")
-     (call-interactively ',command)
-     (when divine--pending-operator
-       (call-interactively divine--pending-operator))))
-
-;;; Hydrid interface
-
-;; A lower-level interface for commands whose type depends on context.
+(defmacro divine-defscope (name)
+  "Define the Divine scope modifier NAME."
+  (let ((enter-fn (intern (format "divine-enter-%s-scope" name)))
+        (force-fn (intern (format "divine-force-%s-scope" name)))
+        (pred-fn (intern (format "divine-%s-scope-p" name))))
+    `(progn
+       (defun ,enter-fn ()
+         ,(format "Activate Divine %s scope if no other scope is active." name)
+         (interactive)
+         (unless divine--motion-scope
+           (setq divine--motion-scope ',name)))
+       (defun ,force-fn ()
+         ,(format "Activate Divine %s scope even if another scope is active." name)
+         (interactive)
+         (setq divine--motion-scope ',name))
+       (defun ,pred-fn ()
+         ,(format "Return non-nil if Divine scope %s is active" name)
+         (eq divine--motion-scope ',name)))))
 
 ;;; Conclusion
 
