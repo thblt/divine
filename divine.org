@@ -1,0 +1,139 @@
+#+TITLE: Divine User Manuel
+:PREAMBLE:
+#+AUTHOR: Thibault Polge
+#+EMAIL: thibault@thb.lt
+#+DATE: 2020
+#+LANGUAGE: en
+
+#+TEXINFO_DIR_CATEGORY: Emacs
+#+TEXINFO_DIR_TITLE: Divine: (divine).
+#+TEXINFO_DIR_DESC: Modal editing
+#+SUBTITLE: For version 0.0 (pre-alpha)
+
+#+TEXINFO_DEFFN: t
+#+OPTIONS: H:4 num:3 toc:2
+#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
+#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
+
+Divine is a modal editing interface for Emacs, inspired by Vim, but
+which doesn't try to emulate Vim.  Instead, it attempts to bring modal
+editing that feels native to Emacs and integrate well with common
+Emacs bindings.
+
+This manual is for Divine version 0.0 (pre-alpha)
+
+#+BEGIN_QUOTE
+Copyright (C) 2020 Thibault Polge <thibault@thb.lt>
+
+You can redistribute this document and/or modify it under the terms
+of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This document is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+#+END_QUOTE
+:END:
+
+* Introduction
+
+Divine is a modal editing interface for Emacs, inspired by Vim, but
+which doesn't try to emulate Vim.  Instead, it attempts to bring modal
+editing that feels native to Emacs and integrate well with common
+Emacs bindings.
+
+* Installation
+
+** Manual installation
+
+Clone the source repository somewhere in your =load-path=, and convert
+this manual to texinfo by running:
+
+#+begin_src shell
+  makeinfo --no-split divine.texi -o divine.info
+  install-info divine.info --dir=dir
+#+end_src
+
+** TODO Install from Melpa
+
+** TODO Install from Git, with Borg
+
+** TODO Install from Git, with Straight
+
+* Fundamental concepts
+
+This section describes the fundamental concepts of Divine.
+
+People who wish to use Divine as a framework should read this section
+closely.  Although most examples assume that the standard Divine
+interface, its presentation is general enough.
+
+** Modes
+
+Divine is a modal interface.  A modal interface is an interface in
+which the results of an action is determined by the current mode.
+Although Divine provides a complete set modes, this chapter will only
+focus on the two most essential: Normal and Insert.
+
+*Insert mode* is similar to regular Emacs, except it has a binding to
+switch to Normal mode.
+
+*Normal mode* binds single letters to composable action and motion
+commands.  It is also the entry point to other modes.
+
+Modes in Divine can be activated permanently or temporarily.
+Temporary activation is called *transient*.  A transient mode will
+terminate and revert to the previous mode as soon as an action has
+completed.
+
+Being transient isn't a property of the mode, but of the activation of
+a mode.
+
+** Commands
+
+A *command* is nothing more than a regular Emacs command, that is, an
+~(interactive)~ function.  Commands can be bound in Divine the same
+way they're bound in regular Emacs.  Because Divine underlying
+interface is a bit more tricky than Emacs', regular Emacs command need
+to be wrapped in `divine-wrap`.
+
+** Operators
+
+An *operator* is a command that operates on a region.  Actions are
+normally bound to Normal mode.  If an action is invoked with an
+existing, non empty region, it is run immediately on this region.
+
+Otherwise, the normal mode switches to the “pending object” state.  In
+this state, the next motion action creates a region, and the command
+is run on this region.  For example, the sequence:
+
+#+begin_example
+  d5F
+#+end_example
+
+will delete the five next words.
+
+ - =d= is the default binding to the kill command.  If d is run on a
+   region, the region is immediately deleted and copied to kill ring.
+ - =5= is a regular prefix argument
+ - =F= is the default binding for the forward word command.
+
+** Motion and text objects
+
+*Motions* are commands that move the point around.  If they're entered
+without a pending operator, they move the point and terminate
+immediately.  If there's a pending operator, they move the point and
+execute this operator on the resulting region.
+
+A *Text object* is a motion command that move both the point AND
+the mark.
+
+Motions can have *scopes*.
+
+* Extending Divine
+
+
+
+* Divine as a framework

@@ -1,4 +1,4 @@
-;;; Divine --- Emacs modal interface, with text objecs or something close enough
+;;; divine.el --- Modal interface with text objects, or something close enough  -*- lexical-binding: t; coding: utf-8 -*p
 
 ;; Copyright (c) 2020 Thibault Polge <thibault@thb.lt>
 
@@ -24,162 +24,70 @@
 
 ;;; Commentary:
 
-;; See README.md
+;; This module provides the standard Divine interface.
 
 ;;; Code:
 
-;;; Core
+(require 'divine-core)
+(require 'divine-commands)
 
-;;;; Variables
+;;; Control modes
 
-(defvar divine-modes nil
-  "List of known divine modes")
+(define-minor-mode divine-mode
+  "Divine, a modal interface with text objects, or something
+  close enough."
+  :lighter " DivineControl"
+  (if divine-mode
+      ;; Enter
+      (divine-choose-initial-mode)
+    ;; Leave
+    (divine--disable-modes nil)))
+(defvar divine-mode-line " INSERT » ")
+(define-globalized-minor-mode divine-global-mode divine-mode divine-mode)
 
-(defvar divine-default-cursor-color nil
-  "Default cursor color for modes that don't specify it.  If nil, use the foreground color of the default face.")
+(defun divine-start ()
+  "Start Divine in the current buffer."
+  (funcall divine-initial-mode-function))
 
-(defvar divine-default-cursor 'box
-  "Default cursor style for modes that don't specify it.")
+(defun divine-p (&optional buffer)
+  "Return non-nil if Divine is active in BUFFER."
+  (unless buffer (setq buffer (current-buffer)))
+  (save-excursion
+    (set-buffer buffer)
+    divine--active-mode))
 
-(defvar divine-empty-buffers-start-in-insert-mode t
-  "When non-nil, buffer of zero length start in insert mode instead of normal")
+(defun divine-choose-initial-mode (&optional buffer)
+  "Pick an appropriate initial mode for BUFFER.
 
-;;;; Macros
+If BUFFER has zero length, activate `divine-insert-mode',
+otherwise `divine-normal-mode'.
 
-(cl-defmacro divine-defmode (name lighter docstring &key cursor cursor-color init finalize)
-  "Define the Divine mode NAME, with documentation DOCSTRING."
-  (declare (indent 2))
-  (let ((cursor-variable (intern (format "%s-cursor" name)))
-        (cursor-color-variable (intern (format "%s-cursor-color" name)))
-        (map-variable (intern (format "%s-map" name))))
-    `(progn
-       (defvar ,cursor-variable ,cursor
-         ,(format "Cursor style for %s." name))
-       (defvar ,cursor-color-variable ,cursor-color
-         ,(format "Cursor color for %s." name))
-       (defvar ,map-variable (make-keymap)
-         ,(format "Keymap for %s" name))
-       (add-to-list 'divine-modes ',name)
-       (define-minor-mode ,name
-         ,docstring
-         :lighter ,lighter
-         :keymap ,map-variable
-         (when ,name
-           (setq-local cursor-type (or ,cursor-variable ,divine-default-cursor)))
-         (set-cursor-color (or ,cursor-color-variable divine-default-cursor-color (face-attribute 'default :foreground))))
-       (divine--disable-others ',name))))
-
-;;;; Functions
-
-(defun divine (arg)
-  "Start Divine.
-
-With an argument, start in insert mode instead of normal mode."
-  (interactive "p")
-  (if (and divine-empty-buffers-start-in-insert-mode
-           (eq (point-max) (point-min)))
-      (divine-insert-mode)
-    (divine-normal-mode)))
-
-(defun divine--disable-others (except)
-  "Disable all modes in `divine-modes' except EXCEPT."
-  (dolist (mode divine-modes)
-    (unless (eq mode except)
-      (funcall mode 0))))
+Interactively, or if BUFFER isn't specified, default to (current-buffer)."
+  (interactive)
+  (unless buffer (setq buffer (current-buffer)))
+  (save-excursion
+    (set-buffer buffer)
+    (if (eq (point-min) (point-max))
+        (divine-insert-mode t)
+      (divine-normal-mode t))))
 
 ;;; Normal mode
 
-;;;; Declaration
-
-(divine-defmode divine-normal-mode " Divine <N>"
+(divine-defmode divine-normal-mode
   "Normal mode for Divine."
   :cursor 'box)
 
-;;;; Macros
+;;;; Predicates
 
-(cl-defmacro divine-defcommand (name docstring object &body body)
-  "Define a Divine action NAME with doc DOCSTRING.
-
-If OBJECT is non-nil, and this action is invoked twice in an
-immmediate sequence, it is run to create the region.  This allows
-to create commands like vim's dd.
-
-BODY is the code of the action.  It should always operate on an active region."
-  (declare (indent defun))
-  `(defun ,name (arg)
-     (interactive "p")
-     ,docstring
-     (when (eq divine-command ,name)
-       (activate-mark)
-       (call-interactively ,object))
-     (if (and (region-active-p)
-              (not (eq (region-beginning) (region-end))))
-         (progn ,@body
-                (setq divine--command nil))
-       (unless (region-active-p)
-         (push-mark)
-         (activate-mark))
-       (setq divine--command ',name))))
-
-(defmacro divine-def-object (name docstring &rest body)
-  "Define a Divine text object NAME with doc DOCSTRING.
-
-When invoked, BODY is evaluated with ARG set to the value of the
-digit argument."
-  (declare (indent defun))
-  `(defun ,name (arg)
-     ,docstring
-     (interactive "p")
-     ,@body
-     (when divine--command
-       (funcall divine--command nil))
-     )
-  )
-
-(defmacro divine-wrap-object (name motion-command)
-  "Create a function called NAME that will run MOTION-COMMAND
-and, if necessary, execute the activated divine command."
-
-  `(defun ,name (arg)
-     ,(format "Divine textobject wrapper around `%s', which see." name)
-     (interactive "p")
-     (call-interactively ',motion-command)
-     (when divine--command
-       (call-interactively divine--command))))
-
-;;;; Objects
-
-;; A text object, in divine, is roughly a motion command.
-
-(divine-def-object divine-whole-line-object
-  "Set mark at the first character of the current-line, and point at the last.
-
-This is not meant for use as a direct command, but as the default object for repeatable commands."
-  (beginning-of-line)
-  (set-mark (point))
-  (end-of-line arg))
-
-
-(divine-wrap-object divine-end-of-line end-of-line)
-(divine--defobject divine-beginning-of-line beginning-of-line)
-
-(divine--defaction divine-kill
-                   (call-interactively 'kill-region))
-
-;;;; Commands
-
-(divine-defcommand divine-kill-command divine-whole-line-object
-  "Kill the selected object"
-  (kill-region (region-beginning) (region-end)))
 
 ;;;; Default keymap
 
 (define-key divine-normal-mode-map (kbd "M-i") 'divine-insert-mode)
 ;; Fundamentals
-; <oni-on-ion> thblt, i think your digit-argument thing can be macro'd to a "0123456789" loop.
-; <oni-on-ion> really all of them -- why not (let ((x divine-normal-map)) (loop... (define-key x ...)))) ?
 
-(define-key divine-normal-mode-map (kbd "0") 'digit-argument)
+;; <oni-on-ion> thblt, i think your digit-argument thing can be macro'd to a "0123456789" loop.
+;; <oni-on-ion> really all of them -- why not (let ((x divine-normal-map)) (loop... (define-key x ...)))) ?
+(define-key divine-normal-mode-map (kbd "0") 'divine-zero)
 (define-key divine-normal-mode-map (kbd "1") 'digit-argument)
 (define-key divine-normal-mode-map (kbd "2") 'digit-argument)
 (define-key divine-normal-mode-map (kbd "3") 'digit-argument)
@@ -189,10 +97,13 @@ This is not meant for use as a direct command, but as the default object for rep
 (define-key divine-normal-mode-map (kbd "7") 'digit-argument)
 (define-key divine-normal-mode-map (kbd "8") 'digit-argument)
 (define-key divine-normal-mode-map (kbd "9") 'digit-argument)
+(define-key divine-normal-mode-map (kbd "-") 'digit-argument)
+;; Eat characters.
+(define-key divine-normal-mode-map [remap self-insert-command] 'divine-fail)
 ;; Character motion
-(define-key divine-normal-mode-map (kbd "b") 'backward-char)
+(define-key divine-normal-mode-map (kbd "b") 'divine-backward-char)
 (define-key divine-normal-mode-map (kbd "B") 'backward-word)
-(define-key divine-normal-mode-map (kbd "f") 'forward-char)
+(define-key divine-normal-mode-map (kbd "f") 'divine-forward-char)
 (define-key divine-normal-mode-map (kbd "F") 'forward-word)
 (define-key divine-normal-mode-map (kbd "<spc>") 'activate-mark)
 ;; Line motion
@@ -200,30 +111,79 @@ This is not meant for use as a direct command, but as the default object for rep
 (define-key divine-normal-mode-map (kbd "n") 'next-line)
 (define-key divine-normal-mode-map (kbd "$") 'divine-end-of-line)
 (define-key divine-normal-mode-map (kbd "a") 'divine-beginning-of-line)
+
+;; Paragraph motion
+(define-key divine-normal-mode-map (kbd "P") 'backward-paragraph)
+(define-key divine-normal-mode-map (kbd "N") 'forward-paragraph)
 ;; Killing
 (define-key divine-normal-mode-map (kbd "d") 'divine-kill)
 ;; History
 (define-key divine-normal-mode-map (kbd "u") 'undo)
 (define-key divine-normal-mode-map (kbd "U") 'redo)
-;; imenu
+;; Switch to insert (direct switch or through deletion)
+(define-key divine-normal-mode-map (kbd "o") 'divine-open-line)
+(define-key divine-normal-mode-map (kbd "c") 'divine-change)
+(define-key divine-normal-mode-map (kbd "i") 'divine-insert-mode)
+(define-key divine-normal-mode-map (kbd "<esc>") 'divine-insert-mode)
+;; Switch to visual
+(define-key divine-normal-mode-map (kbd "v") 'divine-visual-mode)
+(define-key divine-normal-mode-map (kbd "V") 'divine-visual-line-mode)
+(define-key divine-normal-mode-map (kbd "C-v") 'divine-visual-rect-mode)
+;; Switch to Lisp
+(define-key divine-normal-mode-map (kbd "l") 'divine-lisp-transient-mode)
+(define-key divine-normal-mode-map (kbd "L") 'divine-lisp-mode)
+;; Folds
+"TODO"
+;; Macros
+(define-key divine-normal-mode-map (kbd "q") 'divine-start-or-end-macro)
+(define-key divine-normal-mode-map (kbd "Q") 'divine-start-or-end-anonymous-macro)
+(define-key divine-normal-mode-map (kbd "@") 'divine-play-macro)
+
 (define-key divine-normal-mode-map (kbd "M-i") 'counsel-imenu)
+
+;;; “g” mode
+
+(divine-defmode divine-g-mode
+  "A purely transient mode for the `g' command."
+  :lighter divine-normal-mode-lighter
+  )
 
 ;;; Insert mode
 
-(divine-defmode divine-insert-mode " Divine <I>"
+(divine-defmode divine-insert-mode
   "Emacs-like mode for Divine."
   :cursor 'bar)
 
 ;;;; Default keymap
 
-(define-key divine-insert-mode-map  (kbd "M-i") 'divine-normal-mode)
+(define-key divine-insert-mode-map [remap kill-word] 'divine-kill)
+(define-key divine-insert-mode-map [remap keyboard-quit] 'divine-normal-mode)
+
+;;; Emacs mode
+
+(divine-defmode divine-emacs-mode
+  "Strictly Emacs mode for Divine."
+  :cursor 'bar)
+
+;;;; Default keymap
+
+(define-key divine-emacs-mode-map [remap keyboard-quit] 'divine-normal-mode)
 
 ;;; Visual mode
 
-(divine-defmode divine-visual-mode " Divine <V>"
+(divine-defmode divine-visual-mode
   "Emacs-like mode for Divine."
   :cursor 'hollow
   :cursor-color "LightSkyBlue")
+
+(define-key divine-visual-mode-map (kbd "i") 'divine-insert-mode)
+
+;;; Lisp mode
+
+(divine-defmode divine-lisp-mode
+  "Lisp mode for Divine."
+  :cursor 'box
+  :cursor-color "MediumVioletRed")
 
 ;;; Conclusion
 

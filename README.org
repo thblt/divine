@@ -1,3 +1,14 @@
 #+TITLE: Divine Is Not Evil — Modal editing in Emacs, with text objects or something close enough.
 
-Work in progress, nothing to see here.
+Divine is a lightweight and extensible modal interface for Emacs, with
+support for Vi-like text objects, but designed to integrate naturally with
+Emacs.
+
+* Basic usage
+
+Divine comes with a simple tutorial.   To get started, put Divine somewhere in your =load-path=, then evaluate:
+
+#+begin_src emacs-lisp
+  (require 'divine)
+  (info "(Eintr) Preface")
+#+end_src
