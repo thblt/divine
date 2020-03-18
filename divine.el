@@ -182,7 +182,6 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "Emacs-like mode for Divine."
   :cursor 'bar)
 
-
 ;;; Off mode
 
 (divine-defmode divine-off-mode
@@ -192,7 +191,6 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 
 ;;;; Default keymap
 
-(define-key divine-insert-mode-map [remap kill-word] 'divine-kill)
 (define-key divine-insert-mode-map [remap keyboard-quit] 'divine-normal-mode)
 
 ;;; Sexp mode
