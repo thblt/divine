@@ -37,6 +37,41 @@ General Public License for more details.
 #+END_QUOTE
 :END:
 
+#+NAME: describe
+#+begin_src emacs-lisp :var func='nil var='nil :exports none :results value raw hsilent
+  (let ((type (cond ((and func (macrop func)) "Macro")
+                    (func "Function")
+                    (var "Variable")
+                    (t (error "Cannot describe %s as a function or %s as a variable." func var))))
+          (doc (documentation func t)) )
+      (with-temp-buffer
+        (insert (format " - %s: *%s*\n\n" type (symbol-name func)))
+        (if func (insert (documentation func nil)) (documentation-property var 'variable-documentation nil))
+        (when func
+          (goto-char (point-max))
+          (delete-char -1)
+          (beginning-of-line)
+          (delete-char 4)
+          (kill-line)
+          (goto-char (point-min))
+          (end-of-line)
+          (insert " /")
+          (yank)
+          (insert "/")
+          ;; Indent
+          (while (not (eobp))
+            (next-logical-line)
+            (beginning-of-line)
+            (insert "    "))
+        (buffer-string))))
+#+end_src
+
+#+CALL: describe(func='divine-defmode)
+
+#+CALL: describe(func='divine-define-key)
+
+
+
 * Introduction
 
 Divine is a modal editing interface for Emacs, inspired by Vim, but
@@ -62,7 +97,14 @@ this manual to texinfo by running:
 
 ** TODO Install from Git, with Straight
 
+* Basic usage
+
+This chapter
+
 * Fundamental concepts
+:PROPERTIES:
+:custom_id: fundamental-concepts
+:END:
 
 This section describes the fundamental concepts of Divine.
 
@@ -75,10 +117,10 @@ interface, its presentation is general enough.
 Divine is a modal interface.  A modal interface is an interface in
 which the results of an action is determined by the current mode.
 Although Divine provides a complete set modes, this chapter will only
-focus on the two most essential: Normal and Insert.
+focus on the two most essential: *Normal* and *Insert*.
 
-*Insert mode* is similar to regular Emacs, except it has a binding to
-switch to Normal mode.
+ - *Insert mode* ::  is similar to regular Emacs, except it has a
+   binding to switch to Normal mode.
 
 *Normal mode* binds single letters to composable action and motion
 commands.  It is also the entry point to other modes.
@@ -96,8 +138,7 @@ a mode.
 A *command* is nothing more than a regular Emacs command, that is, an
 ~(interactive)~ function.  Commands can be bound in Divine the same
 way they're bound in regular Emacs.  Because Divine underlying
-interface is a bit more tricky than Emacs', regular Emacs command need
-to be wrapped in `divine-wrap`.
+interface is a bit more tricky than Emacs',
 
 ** Operators
 
@@ -132,8 +173,87 @@ the mark.
 
 Motions can have *scopes*.
 
+** Numeric arguments
+
+Like Emacs, Divine operators
+
 * Extending Divine
+:PROPERTIES:
+:custom_id: extending-divine
+:END:
 
+This chapter describes how you can add create your own operators,
+motions, and modes on top of the standard interface.
 
+** Creating operators
 
+A Divine operator is a command that operates on an existing region, if
+there's one (usually in one of the =select-*-modes=), or that declares
+itself as “pending” until a motion command has created a region.
+
+#+CALL:describe(func='divine-defcommand,var=3)
+
+#+RESULTS:
+:  - FUNCTION: *divine-defcommand*
+:
+
+To access the prefix argument from within an operator, see
+[[#reading-prefix-arg]].
+
+** Creating motions and text objects
+
+** Creating hybrid bindings
+
+** Using the numeric argument
+:PROPERTIES:
+:custom_id: reading-prefix-arg
+:END:
+
+** Creating modes
 * Divine as a framework
+:PROPERTIES:
+:custom_id: framework
+:END:
+
+This chapter details the use of Divine as a framework.  By using
+Divine this way, you can easily implement totally different sets of
+modes and commands.
+
+It is strongly recommended to at least skim through the
+[[#fundamental-concepts]] chapter before reading this section.
+* Test
+
+# (insert "\n\n" (yas--document-symbol 'divine-define-key 1))
+
+* @@html:<code class='function'>@@divine-define-key@@html:</code>@@ (=mode= =key= =command= /&rest/ =--cl-rest--=)
+:PROPERTIES:
+:CUSTOM_ID: divine-define-key
+:END:
+Bind @@html:<code>@@key@@html:</code>@@ to @@html:<code>@@command@@html:</code>@@ in Divine mode @@html:<code>@@mode@@html:</code>@@.
+
+ - @@html:<code>@@mode@@html:</code>@@ is the short name of a Divine mode, like 'normal or 'insert.
+
+ - /state/ is a predicate that depends of the current
+   interactive state of Divine.  It usually corresponds to the
+   type of the command.
+
+   - :numeric-arg :: Holds if a numeric argument is legal.
+   - :motion      :: Holds if amotion is legal.
+   - :object      :: Holds if text object is legal.
+   - :action      :: Holds if a action is legal.
+   - :operator    :: Holds i an operator binding has been repeated (eg =dd=).
+   - :operator*   :: Match the special case where an operator is pending and its binding is repeated.
+   - :scope       :: Match states where a scope modifier is legal.
+
+ - /emacs-mode/ is a symbol identifying an Emacs major or minor
+   mode.  Minor modes take precedence over major modes.
+
+ - /predicate/ determines condition that must hold for the binding
+   to be executed.  It thus allows multiple commands to easily
+   share the same binding.
+
+/predicate/ is compiled by =divine-compile-predicate=, which see.
+
+(fn @@html:<code>@@mode@@html:</code>@@ @@html:<code>@@key@@html:</code>@@ @@html:<code>@@command@@html:</code>@@ &key ((:mode /emacs-mode/) t) ((:in /state/) nil) ((:when /pred/) nil))
+
+//
