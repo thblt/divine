@@ -32,6 +32,16 @@
 (require 'outline)
 (require 'rect)
 
+;;; Customizations
+
+(defcustom divine-paragraphs-are-defuns 'divine-prog-mode-p
+  "Determine whether P and N should move by defuns instead of paragraphs.
+
+This can be either t, nil, or a function that returns a boolean value."
+  :type '(choice (const :tag "Always" t)
+                 (const :tag "Never" nil)
+                 (function :tag "Predicate")))
+
 ;;; Utilities
 
 (defconst divine--blank-line-regexp (rx bol (* space) eol))
@@ -64,6 +74,22 @@ If DELETE, region is deleted from buffer."
   (divine--text-to-register-helper t)
   (divine-insert-mode))
 
+(divine-defaction divine-char-replace
+  "Kill the relevant something, then enter insert mode."
+   (let ((char (char-to-string (divine-read-char))))
+     (divine-dotimes
+      (if (and (eq count 1) (looking-at "$"))
+          ;; * Special case: we're at the end of a line, and count is
+          ;; * 1: we append without replacing the \n
+          (insert char)
+        ;; * Base case
+        ;; Ignore newlines.
+        (while (looking-at "$")
+          (forward-char plus1))
+        (delete-char plus1)
+        (insert char)
+        (when negative (backward-char))))))
+
 ;;; Motions
 
 ;;;; Scopes
@@ -73,21 +99,15 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Character motion
 
-(divine-defmotion divine-char-forward
-  "Move forward ARG character(s)."
-  (forward-char (divine-numeric-argument)))
+(divine-reverse-command
+ (divine-defmotion divine-char-forward
+   "Move forward ARG character(s)."
+   (forward-char (divine-numeric-argument))))
 
-(divine-defmotion divine-char-right
-  "Move forward ARG character(s), on the same line."
-  (right-char (divine-numeric-argument)))
-
-(divine-defmotion divine-char-left
-  "Move backward ARG character(s), on the same line."
-  (left-char (divine-numeric-argument)))
-
-(divine-defmotion divine-char-backward
-  "Move backward ARG character(s)."
-  (backward-char (divine-numeric-argument)))
+(divine-reverse-command
+ (divine-defmotion divine-char-left
+   "Move backward ARG character(s), on the same line."
+   (left-char (divine-numeric-argument))))
 
 (divine-defmotion divine-paragraph-forward
   "Move forward ARG paragraph(s)."
@@ -102,13 +122,13 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Line motion
 
-(divine-defmotion divine-line-forward
-  "Move forward ARG line(s)."
-  (forward-line (divine-numeric-argument)))
+(divine-reverse-command
+ (divine-defmotion divine-line-forward
+   "Move forward COUNT line(s)."
+   (divine-with-numeric-argument
+    (message "%s" count)
+    (forward-line count))))
 
-(divine-defmotion divine-line-backward
-  "Move forward ARG line(s)."
-  (forward-line (- (divine-numeric-argument))))
 
 (divine-defmotion divine-line-beginning
   "Go to the beginning of current line."
@@ -126,58 +146,41 @@ If DELETE, region is deleted from buffer."
     (divine-fail)))
 
 (divine-defmotion divine-whole-line
-  "Set mark at the first character of the current-line, and point at the last.
-
-This is not meant for use as a direct command, but as the default motion for repeatable commands."
+  "Set mark at the first character of the current-line, and point at the last."
   (beginning-of-line)
-  (set-mark (point))
+  (push-mark (point))
   (end-of-line (divine-numeric-argument)))
 
 ;;;; Word motion
 
-(divine-defmotion divine-word-backward
-  "Move backward ARG paragraph(s)."
-  (let* ((arg (divine-numeric-argument))
-         (extra (divine--reversed-one arg)))
-    (when (divine-scope-inside-flag)
-      (message "Inside")
-      (backward-word extra)
-      (push-mark (point) t nil))
-    (backward-word arg)))
-
-(divine-defmotion divine-word-forward
-  "Move backward ARG paragraph(s)."
-  (forward-word (divine-numeric-argument)))
+(divine-reverse-command
+ (divine-defmotion divine-word-forward
+   "Move COUNT word(s) forward."
+   (divine-with-numeric-argument
+    (message "Run: %s %s" (divine-scope-p) count)
+    (forward-word count)
+    ;; With a scope.
+    (when (divine-scope-flag)
+      (push-mark (point) t t)
+      (backward-word count)))))
 
 ;;;; Search
 
-(defun divine--find-char-helper (backwards after)
+(defun divine--find-char-helper (after)
   "Helper for divine-find-char-*[-after]"
-  (let* ((count (if backwards
-                    (- (divine-numeric-argument))
-                  (divine-numeric-argument)))
-         (backwards (< count 0))
-         (extra-step (cond ((and after backwards) +1)
-                           ((eq after backwards) -1)
-                           (t 0))))
-    (search-forward (char-to-string (divine-read-char "?")) nil nil count)
-    (forward-char extra-step)))
+  (divine-with-numeric-argument
+   (search-forward (char-to-string (divine-read-char)) nil nil count)
+   (unless (eq positive after) (forward-char minus1))))
 
-(divine-defmotion divine-find-char-forward-before
-  "@TODO"
-  (divine--find-char-helper nil nil))
+(divine-reverse-command
+ (divine-defmotion divine-find-char-forward-before
+   "Prompt for a character, then move point forward before the COUNTh occurence."
+   (divine--find-char-helper nil)))
 
-(divine-defmotion divine-find-char-forward-after
-  "@TODO"
-  (divine--find-char-helper nil t))
-
-(divine-defmotion divine-find-char-backward-before
-  "@TODO"
-  (divine--find-char-helper t nil))
-
-(divine-defmotion divine-find-char-backward-after
-  "@TODO"
-  (divine--find-char-helper t t))
+(divine-reverse-command
+ (divine-defmotion divine-find-char-forward-after
+   "Prompt for a character, then move point forward after the COUNTh occurence."
+   (divine--find-char-helper t)))nnn
 
 ;;;; Buffer motion
 
@@ -207,20 +210,20 @@ This is not meant for use as a direct command, but as the default motion for rep
   "Move the subtree down."
   (outline-move-subtree-down (divine-numeric-argument)))
 
-  ;; ("p" outline-previous-visible-heading "prev")
-  ;; ("<down>" outline-previous-visible-heading "prev")
-  ;; ("n" outline-next-visible-heading "next")
-  ;; ("<up>" outline-next-visible-heading "prev")
-  ;; ("P" outline-move-subtree-up "up")
-  ;; ("N" outline-move-subtree-down "down")
-  ;; ("b" outline-promote "+")
-  ;; ("f" outline-demote "-")
-  ;; ("w" outshine-narrow-to-subtree "Narrow")
-  ;; ("c" outshine-cycle "Cycle")
-  ;; ("<tab>" outshine-cycle "Cycle")
-  ;; ("C" outshine-cycle-buffer "Cycle buffer")
-  ;; ("M-<tab>" outshine-cycle-buffer)
-  ;; ("o" outline-hide-other "Hide others"))
+;; ("p" outline-previous-visible-heading "prev")
+;; ("<down>" outline-previous-visible-heading "prev")
+;; ("n" outline-next-visible-heading "next")
+;; ("<up>" outline-next-visible-heading "prev")
+;; ("P" outline-move-subtree-up "up")
+;; ("N" outline-move-subtree-down "down")
+;; ("b" outline-promote "+")
+;; ("f" outline-demote "-")
+;; ("w" outshine-narrow-to-subtree "Narrow")
+;; ("c" outshine-cycle "Cycle")
+;; ("<tab>" outshine-cycle "Cycle")
+;; ("C" outshine-cycle-buffer "Cycle buffer")
+;; ("M-<tab>" outshine-cycle-buffer)
+;; ("o" outline-hide-other "Hide others"))
 
 ;;;; Balanced expressions (Lisp-mode)
 
@@ -252,7 +255,7 @@ kill-ring."
 
 (divine-defaction divine-mark-activate
   "Activate the mark."
-    (push-mark (point) t t))
+  (push-mark (point) t t))
 
 (divine-defaction divine-mark-deactivate
   "Deactivate the mark."

@@ -26,6 +26,16 @@
   (should (divine-numeric-argument-flag))
   (should-not (divine-numeric-argument-flag)))
 
+(ert-deftest divine--reverse-direction-words ()
+  (should (string=
+           "previous previous backward left"
+           (divine--reverse-direction-words "previous next forward right"))))
+
+(ert-deftest divine-reverse-command ()
+  (divine-reverse-command 'divine-numeric-argument divine-core-tests--numeric-arg-reversed)
+  (setq current-prefix-arg 4)
+  (should (eq -4 (divine-core-tests--numeric-arg-reversed))))
+
 (when noninteractive
     (message "Divine %s\n" divine-version)
   (ert-run-tests-batch t))

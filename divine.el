@@ -31,13 +31,10 @@
 (require 'divine-core)
 (require 'divine-commands)
 
-;;; Control modes
+;;; Control
 
 (defun divine-choose-initial-mode (&optional buffer)
   "Pick an appropriate initial mode for BUFFER.
-
-If BUFFER has zero length, activate `divine-insert-mode',
-otherwise `divine-normal-mode'.
 
 Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (interactive)
@@ -52,15 +49,12 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
            (divine-off-mode t))
           (t (divine-normal-mode t)))))
 
-;;; Utility
-
 (defun divine-abort ()
   "Abort what needs to be aborted."
   (interactive)
   (cond ((region-active-p) (deactivate-mark))
         ((not divine-normal-mode) (divine-normal-mode t)))
   (divine--finalize)) ; @TODO Check for transient mode.
-
 
 ;;; Normal mode
 
@@ -83,10 +77,12 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (define-key keymap (kbd "7") 'digit-argument)
   (define-key keymap (kbd "8") 'digit-argument)
   (define-key keymap (kbd "9") 'digit-argument)
-  (define-key keymap (kbd "-") 'digit-argument)
+  (define-key keymap (kbd "-") 'negative-argument)
   (define-key keymap (kbd "\"") 'divine-select-register)
   (define-key keymap [remap keyboard-quit] 'divine-abort)
   keymap)
+
+;;;; Utilities
 
 ;;;; Default keymap
 
@@ -113,9 +109,12 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (define-key divine-normal-mode-map (kbd "N") 'divine-paragraph-forward)
 ;; Buffer motion
 (define-key divine-normal-mode-map (kbd "g") 'divine-goto-line-or-g-mode)
-;; Search
+;; Searche
 (define-key divine-normal-mode-map (kbd "t") 'divine-find-char-forward-before)
 (define-key divine-normal-mode-map (kbd "T") 'divine-find-char-backward-before)
+(define-key divine-normal-mode-map (kbd "l") 'divine-find-char-forward-after)
+(define-key divine-normal-mode-map (kbd "L") 'divine-find-char-backward-after)
+
 ;; Insertion
 (define-key divine-normal-mode-map (kbd "a") 'divine-bol-or-around)
 (define-key divine-normal-mode-map (kbd "o") 'divine-open-line)
@@ -127,6 +126,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (define-key divine-normal-mode-map (kbd "w") 'divine-text-save)
 (define-key divine-normal-mode-map (kbd "w") 'divine-text-save)
 (define-key divine-normal-mode-map (kbd "y") 'divine-yank)
+(define-key divine-normal-mode-map (kbd "r") 'divine-char-replace)
 
 ;; History
 (define-key divine-normal-mode-map (kbd "u") 'undo)
@@ -148,6 +148,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (define-key divine-normal-mode-map (kbd "M-i") 'counsel-imenu)
 
 (define-key divine-normal-mode-map (kbd "SPC s") 'save-buffer)
+
 
 ;;; “g” mode
 

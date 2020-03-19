@@ -42,7 +42,7 @@
     (const :tag "Vertical bar" bar)
     (cons :tag "Vertical bar with specified width" (const bar) integer)
     (const :tag "Horizontal bar" hbar)
-    (cons :tag "Horizontal bar with specified width" (const hbar) integer)
+    (const :tag "Horizontal bar with specified width" (const hbar) integer)
     (const :tag "None " nil))) ; To update, C-u eval (custom-variable-type 'cursor-type)
 
 (defconst divine-custom-cursor-color-type '(choice (const :tag "Default" nil)
@@ -225,6 +225,76 @@ non-null integer."
    ((listp arg) (car arg))
     (  arg)))
 
+;;;;; Utility macros
+
+
+(defmacro divine-with-numeric-argument (&rest body)
+  "Evaluate BODY in an environment where:
+
+ - COUNT is bound to the value of the numeric argument
+ - TIMES is bound to the absolute value of the numeric argument
+ - POSITIVE is non-nil if COUNT is positive or null
+ - NEGATIVE is (not positive)
+ - PLUS1 is 1 if POSITIVE, -1 otherwise.
+ - MINUS1 is minus PLUS1."
+  `(let* ((count (divine-numeric-argument))
+          (times (abs count))
+          (positive (>= count 0))
+          (negative (not positive))
+          (plus1 (if positive +1 -1))
+          (minus1 (- plus1)))
+     ,@body))
+
+(defmacro divine-dotimes (&rest body)
+  "Execute BODY COUNT times, in the same environment as
+  `divine-with-numeric-argument'."
+  `(divine-with-numeric-argument
+    (dotimes (_ times)
+      ,@body)))
+
+(defmacro divine-reverse-command (command &optional name)
+  "Create a command called NAME that runs COMMAND with the
+  numeric argument reversed.
+
+COMMAND must be quoted.
+
+If NAME isn't provided, it's calculated with
+`divine--reverse-direction-words'."
+  (setq command (eval command))
+  (unless (symbolp command) (error "COMMAND must be a symbol."))
+  (unless name ; Guess name
+    (setq name (intern (divine--reverse-direction-words (symbol-name command))))
+    (when (eq command name) (error "Cannot magically reverse `%s', please pass a name." name)))
+  `(defun ,name ()
+     ,(divine--reverse-direction-words (documentation command))
+     (interactive)
+     (setq current-prefix-arg (- (divine-numeric-argument)))
+     (,command)))
+
+(defun divine--word-replace-both-ways (word other-word &optional noswap)
+  "Replace the first occurence of WORD by OTHER-WORD, or conversely.
+
+If WORD is found, replace all occurences with OTHER-WORD.
+
+If WORD isn't found and NOSWAP is nil, repeat with WORD and
+OTHER-WORD swapped"
+  (save-excursion
+    (cond ((re-search-forward (rx word-boundary (literal word) word-boundary) nil t)
+           (replace-match other-word))
+          ((not noswap) (divine--word-replace-both-ways other-word word t)))))
+
+(defun divine--reverse-direction-words (STRING)
+  "In STRING replace forward by backward, next by prev,
+and conversely, and return the modified symbol."
+  (with-temp-buffer
+    (insert STRING)
+    (dolist (pair '(("next" . "previous")
+                    ("forward" . "backward")
+                    ("left" . "right")))
+      (goto-char (point-min))
+      (divine--word-replace-both-ways (car pair) (cdr pair)))
+    (buffer-string)))
+
 ;;;; Register argument support
 
 (defvar-local divine--register nil
@@ -262,6 +332,12 @@ If NOCONSUME is non-nil, don't consume the value."
 Don't use this function to consume the scope, even if you have
   only one."
   divine--object-scope)
+
+(defun divine-scope-flag ()
+  "Like `divine-scope-p', but consume the scope."
+  (prog1
+      divine--object-scope
+    (setq divine--object-scope nil)))
 
 ;;;; Messages
 
@@ -394,7 +470,7 @@ The following keyword arguments are accepted.
      (when (called-interactively-p 'any)
        (setq prefix-arg current-prefix-arg))))
 
-;;; Action definition interface
+;;;; Action definition interface
 
 (defmacro divine-defaction (name docstring &rest body)
   "Define an action NAME for Divine.
@@ -406,7 +482,7 @@ It is legal whenever an operator is, but is never pending."
      ,@body
      (divine--finalize)))
 
-;;; Operator definition interface
+;;;; Operator definition interface
 
 (defmacro divine-defoperator (name motion docstring &rest body)
   "Define a Divine operator NAME with doc DOCSTRING.
@@ -442,14 +518,13 @@ once, by calling `divine-argument'."
 (defmacro divine-defmotion (name docstring &rest body)
   "Define a Divine text motion NAME with doc DOCSTRING.
 BODY should move the point for a regular motion, or both the
-
 point and the mark, as needed for a text object.  Neither motions
 nor objects must activate or deactivate the region."
   (declare (indent defun))
   `(divine-defcommand ,name ,docstring
      ,@body))
 
-;;;;; Scope definition interface
+;;;; Scope definition interface
 
 (defmacro divine-defscope (name)
   "Define the Divine scope modifier NAME.
