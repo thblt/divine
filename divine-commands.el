@@ -180,7 +180,7 @@ If DELETE, region is deleted from buffer."
 (divine-reverse-command
  (divine-defmotion divine-find-char-forward-after
    "Prompt for a character, then move point forward after the COUNTh occurence."
-   (divine--find-char-helper t)))nnn
+   (divine--find-char-helper t)))
 
 ;;;; Buffer motion
 
