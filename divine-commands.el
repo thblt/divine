@@ -99,15 +99,17 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Character motion
 
-(divine-reverse-command
- (divine-defmotion divine-char-forward
-   "Move forward ARG character(s)."
-   (forward-char (divine-numeric-argument))))
+(divine-defmotion divine-char-forward
+  "Move forward ARG character(s)."
+   (forward-char (divine-numeric-argument)))
 
-(divine-reverse-command
- (divine-defmotion divine-char-left
+(divine-reverse-command 'divine-char-forward)
+
+(divine-defmotion divine-char-left
    "Move backward ARG character(s), on the same line."
-   (left-char (divine-numeric-argument))))
+   (left-char (divine-numeric-argument)))
+
+(divine-reverse-command 'divine-char-left)
 
 (divine-defmotion divine-paragraph-forward
   "Move forward ARG paragraph(s)."
@@ -122,13 +124,13 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Line motion
 
-(divine-reverse-command
- (divine-defmotion divine-line-forward
+(divine-defmotion divine-line-forward
    "Move forward COUNT line(s)."
    (divine-with-numeric-argument
     (message "%s" count)
-    (forward-line count))))
+    (forward-line count)))
 
+(divine-reverse-command 'divine-line-forward)
 
 (divine-defmotion divine-line-beginning
   "Go to the beginning of current line."
@@ -153,7 +155,6 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Word motion
 
-(divine-reverse-command
  (divine-defmotion divine-word-forward
    "Move COUNT word(s) forward."
    (divine-with-numeric-argument
@@ -162,7 +163,9 @@ If DELETE, region is deleted from buffer."
     ;; With a scope.
     (when (divine-scope-flag)
       (push-mark (point) t t)
-      (backward-word count)))))
+      (backward-word count))))
+
+(divine-reverse-command 'divine-word-forward)
 
 ;;;; Search
 
@@ -172,15 +175,17 @@ If DELETE, region is deleted from buffer."
    (search-forward (char-to-string (divine-read-char)) nil nil count)
    (unless (eq positive after) (forward-char minus1))))
 
-(divine-reverse-command
- (divine-defmotion divine-find-char-forward-before
+(divine-defmotion divine-find-char-forward-before
    "Prompt for a character, then move point forward before the COUNTh occurence."
-   (divine--find-char-helper nil)))
+   (divine--find-char-helper nil))
 
-(divine-reverse-command
- (divine-defmotion divine-find-char-forward-after
+(divine-reverse-command 'divine-find-char-forward-before)
+
+(divine-defmotion divine-find-char-forward-after
    "Prompt for a character, then move point forward after the COUNTh occurence."
-   (divine--find-char-helper t)))
+   (divine--find-char-helper t))
+
+(divine-reverse-command 'divine-find-char-forward-after)
 
 ;;;; Buffer motion
 
