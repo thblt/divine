@@ -59,9 +59,10 @@ This can be either t, nil, or a function that returns a boolean value."
 
 (defconst divine--blank-line-regexp (rx bol (* space) eol))
 
-(defun divine--reversed-one (count)
-  "Return -1 if arg is positive, 1 otherwise."
-  (if (< count 0) +1 -1))
+(defalias 'divine-commands-switch-to-insert-mode 'divine-insert-mode
+  "To use divine-commands.el as a library in a divine interface
+that doesn't provide `divine-insert-mode', override this
+alias to use your function instead.")
 
 (defun divine--text-to-register-helper (&optional delete)
   "A generic helper to move text regions to REGISTER, or to kill-ring.
@@ -92,23 +93,24 @@ If DELETE, region is deleted from buffer."
 (divine-defoperator divine-change
   "Kill REGION, then enter insert mode."
   (divine--text-to-register-helper t)
-  (divine-insert-mode))
+  (divine-commands-switch-to-insert-mode))
 
 (divine-defaction divine-char-replace
   "Replace char at point without leaving normal mode."
   (let ((char (char-to-string (divine-read-char))))
-    (divine-dotimes
-     (if (and (eq count 1) (looking-at "$"))
-         ;; * Special case: we're at the end of a line, and count is
-         ;; * 1: we append without replacing the \n
+    (save-excursion
+      (divine-dotimes
+       (if (and (eq count 1) (looking-at "$"))
+           ;; * Special case: we're at the end of a line, and count is
+           ;; * 1: we append without replacing the \n
+           (insert char)
+         ;; Ignore newlines.
+         ;; * Base case
+         (while (looking-at "$")
+           (forward-char plus1))
+         (delete-char plus1)
          (insert char)
-       ;; Ignore newlines.
-       ;; * Base case
-       (while (looking-at "$")
-         (forward-char plus1))
-       (delete-char plus1)
-       (insert char)
-       (when negative (backward-char))))))
+         (when negative (backward-char)))))))
 
 ;;; Motions
 
@@ -166,11 +168,19 @@ If DELETE, region is deleted from buffer."
     (divine-fail)))
 
 (divine-defmotion divine-whole-line
-  "Set mark at the first character of the current-line, and point at the last."
+  "Set mark at the first character of the current-line, and point
+at the last, including the final \n."
   (beginning-of-line)
   (push-mark (point))
   (end-of-line (divine-numeric-argument))
   (unless (eobp) (forward-char)))
+
+(divine-defmotion divine-line-contents
+  "Set mark at the first character of the current-line, and point
+at the last, including the final \n."
+  (beginning-of-line)
+  (push-mark (point))
+  (end-of-line (divine-numeric-argument)))
 
 ;;;; Word motion
 
@@ -312,34 +322,20 @@ is active, toggle rectangle mode"
     (divine-mark-activate)
     (divine-mark-rectangle-activate)))
 
-
 ;;; @FIXME Unsorted
 
 (divine-wrap-operator indent-region)
 
+;;; Smartparens
+
+(divine-defoperator divine-wrap
+  "Prompt for character, then wrap region with it."
+  )
+
 ;;; Hybrids
 
-(divine-defcommand divine-bol-or-around
-  "If there's a pending operator, maybe select the 'around scope,
- otherwise go to beginning of line."
-  (cond ((divine-accept-scope-p)
-         (divine-scope-around-select))
-        ((divine-accept-motion-p)
-         (divine-line-beginning))
-        (t (divine-fail))))
-
-(divine-defcommand divine-insert-or-inside
-  "If there's a pending operator, maybe set the motion flag to 'inside,
-  otherwise insert at point."
-  (cond ((divine-accept-scope-p)
-         (divine-scope-inside-select))
-        ((divine-accept-operator-p)
-         (divine-insert-mode))
-        (t (divine-fail))))
-
 (divine-defcommand divine-zero
-  "If there's a digit argument, multiply it by 10, otherwise go
-to the first character in line."
+  "Multiply current numeric argument by 10."
   (if (divine-numeric-argument-p)
       (setq prefix-arg (* (divine-numeric-argument t) 10))
     (divine-line-beginning)))

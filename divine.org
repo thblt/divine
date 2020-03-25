@@ -70,8 +70,6 @@ General Public License for more details.
 
 #+CALL: describe(func='divine-define-key)
 
-
-
 * Introduction
 
 Divine is a modal editing interface for Emacs, inspired by Vim, but
@@ -210,50 +208,48 @@ To access the prefix argument from within an operator, see
 :END:
 
 ** Creating modes
-* Divine as a framework
+
+#+CALL: describe(func='divine-defmode)
+
+* The Divine framework
 :PROPERTIES:
 :custom_id: framework
 :END:
 
-This chapter details the use of Divine as a framework.  By using
-Divine this way, you can easily implement totally different sets of
-modes and commands.
+Divine was designed with extensibility and modularity in mind.  The
+modal user interface Divine provides is implemented on top of a very
+abstract core, contained in =divine-core.el=.  This core has no
+dependencies besides core Emacs.  This chapter describes what it
+provides, and how you can write custom modal interfaces over it.
 
-It is strongly recommended to at least skim through the
-[[#fundamental-concepts]] chapter before reading this section.
+Notice that the commands library =divine-commands.el= makes very few
+assumptions about the general interface it's called from, and thus is
+generally usable to implement custom Divine interfaces.
+
+** The bare minimum
+
+The core is not complete in itself.  You need to provide at least the
+=divine-start= function.
+
+ - *divine-start*
+
+   =divine-mode= calls =divine-start= with no argument to initialize
+   Divine.  =divine-start= should activate a Divine mode (or calling
+   =divine-mode= will have no effect) and can do can do anything
+   needed to initialize Divine.
+
+   In the default interface, divine-start also registers a few hooks.
+
+** Scopes internals
+
+The standard scope modifiers =around= and =inside= are not part of the
+core.  All the core provides is a scope definition macro,
+=divine-defscope=.
+
+#+CALL: describe(func='divine-defscope)
+
+** Key binding interface internals
+
+
+
 * Test
-
-# (insert "\n\n" (yas--document-symbol 'divine-define-key 1))
-
-* @@html:<code class='function'>@@divine-define-key@@html:</code>@@ (=mode= =key= =command= /&rest/ =--cl-rest--=)
-:PROPERTIES:
-:CUSTOM_ID: divine-define-key
-:END:
-Bind @@html:<code>@@key@@html:</code>@@ to @@html:<code>@@command@@html:</code>@@ in Divine mode @@html:<code>@@mode@@html:</code>@@.
-
- - @@html:<code>@@mode@@html:</code>@@ is the short name of a Divine mode, like 'normal or 'insert.
-
- - /state/ is a predicate that depends of the current
-   interactive state of Divine.  It usually corresponds to the
-   type of the command.
-
-   - :numeric-arg :: Holds if a numeric argument is legal.
-   - :motion      :: Holds if amotion is legal.
-   - :object      :: Holds if text object is legal.
-   - :action      :: Holds if a action is legal.
-   - :operator    :: Holds i an operator binding has been repeated (eg =dd=).
-   - :operator*   :: Match the special case where an operator is pending and its binding is repeated.
-   - :scope       :: Match states where a scope modifier is legal.
-
- - /emacs-mode/ is a symbol identifying an Emacs major or minor
-   mode.  Minor modes take precedence over major modes.
-
- - /predicate/ determines condition that must hold for the binding
-   to be executed.  It thus allows multiple commands to easily
-   share the same binding.
-
-/predicate/ is compiled by =divine-compile-predicate=, which see.
-
-(fn @@html:<code>@@mode@@html:</code>@@ @@html:<code>@@key@@html:</code>@@ @@html:<code>@@command@@html:</code>@@ &key ((:mode /emacs-mode/) t) ((:in /state/) nil) ((:when /pred/) nil))
-
-//

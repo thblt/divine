@@ -716,8 +716,6 @@ Bindings are compiled by `divine-compile-bindings', which see."
             command
           name)))))
 
-
-
 (defun divine--eval-binding-predicate (pred)
   (pcase pred
     ('region-active (region-active-p))
