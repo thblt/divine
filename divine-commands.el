@@ -7,7 +7,7 @@
 ;;
 ;; Keywords: convenience
 ;; Homepage: https://github.com/thblt/divine
-;; Version: pre-alpha
+;; Version: 0.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -87,7 +87,7 @@ If DELETE, region is deleted from buffer."
 ;;;; Killing
 
 (divine-defoperator divine-kill
-  "Kill REGION."
+  "Kill REGION into REGISTER."
   (divine--text-to-register-helper t))
 
 (divine-defoperator divine-change

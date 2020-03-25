@@ -7,7 +7,7 @@
 ;;
 ;; Keywords: convenience
 ;; Homepage: https://github.com/thblt/divine
-;; Version: pre-alpha
+;; Version: 0.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -500,8 +500,8 @@ It is legal whenever an operator is, but is never pending."
   "Define a Divine operator NAME with doc DOCSTRING.
 
 BODY is the code of the operator.  It's expected to work between
-point and mark.  It can read the current prefix argument, exactly
 once, by calling `divine-argument'."
+  point and mark.  It can read the current prefix argument, exactly
   (declare (indent defun))
   `(divine-defcommand ,name ,docstring
      (cond
