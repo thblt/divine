@@ -1,40 +1,5 @@
 ;;; divine-experimental.el --- Experimental Divine features  -*- lexical-binding: t; coding: utf-8 -*-
 
-;;; Binding
-
-;;;; Macro interface
-
-(divine-define-key 1 2 3 :in 4)
-
-(cl-defmacro divine-define-key (mode key command &key ((:mode emacs-mode) t) ((:in state)) ((:when pred)))
-  "Bind KEY to COMMAND in Divine mode MODE.
-
- - MODE is the short name of a Divine mode, like 'normal or 'insert.
-
- - STATE is a predicate that depends of the current
-   interactive state of Divine.  It usually corresponds to the
-   type of the command.
-
-   - :numeric-arg :: Holds if a numeric argument is legal.
-   - :motion      :: Holds if amotion is legal.
-   - :object      :: Holds if text object is legal.
-   - :action      :: Holds if a action is legal.
-   - :operator    :: Holds i an operator binding has been repeated (eg `dd').
-   - :operator*   :: Match the special case where an operator is pending and its binding is repeated.
-   - :scope       :: Match states where a scope modifier is legal.
-
- - EMACS-MODE is a symbol identifying an Emacs major or minor
-   mode.  Minor modes take precedence over major modes.
-
- - PREDICATE determines condition that must hold for the binding
-   to be executed.  It thus allows multiple commands to easily
-   share the same binding.
-
-PREDICATE is compiled by `divine-compile-predicate', which see."
-  (when (null emacs-mode) (error "Impossible binding, use :mode t to match all emacs modes"))
-  (list mode key command emacs-mode state pred))
-
-(divine-define-key 1 2 3 :mode nil)
 ;;; Repetition
 
 ;; Repetition reproduces Vim's . command.

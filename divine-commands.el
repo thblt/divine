@@ -38,9 +38,22 @@
   "Determine whether P and N should move by defuns instead of paragraphs.
 
 This can be either t, nil, or a function that returns a boolean value."
+  :group 'divine
   :type '(choice (const :tag "Always" t)
                  (const :tag "Never" nil)
                  (function :tag "Predicate")))
+
+(defcustom divine-pair-aliases '((?p . ?\()
+                                 (?P . ?\))
+                                 (?b . ?\[)
+                                 (?B . ?\])
+                                 (?c . ?{)
+                                 (?C . ?}))
+
+  "Configure bindings for pair definitions.  This is used for
+  the (re)wrapping commands to let you more easily enter pair
+  prefixes."
+  :type '(alist :key-type character :value-type character))
 
 ;;; Utilities
 
@@ -55,40 +68,47 @@ This can be either t, nil, or a function that returns a boolean value."
 
 If DELETE, region is deleted from buffer."
   (if (divine-register-p)
+      ;; otherwise
       (copy-to-register (divine-register) (region-beginning) (region-end) delete t))
-  ;; otherwise
   (kill-ring-save (region-beginning) (region-end) t)
   (when delete
     (delete-region (region-beginning) (region-end))))
+
+(defun divine-read-pair (&optional prompt)
+  "Like `divine-read-char', but translates the result with
+  `divine-pair-aliases'."
+  (interactive)
+  (let ((char (divine-read-char prompt)))
+    (alist-get char divine-pair-aliases char)))
 
 ;;; Operators
 
 ;;;; Killing
 
-(divine-defoperator divine-kill divine-whole-line
-  "Kill the relevant something."
+(divine-defoperator divine-kill
+  "Kill REGION."
   (divine--text-to-register-helper t))
 
-(divine-defoperator divine-change divine-whole-line
-  "Kill the relevant something, then enter insert mode."
+(divine-defoperator divine-change
+  "Kill REGION, then enter insert mode."
   (divine--text-to-register-helper t)
   (divine-insert-mode))
 
 (divine-defaction divine-char-replace
-  "Kill the relevant something, then enter insert mode."
-   (let ((char (char-to-string (divine-read-char))))
-     (divine-dotimes
-      (if (and (eq count 1) (looking-at "$"))
-          ;; * Special case: we're at the end of a line, and count is
-          ;; * 1: we append without replacing the \n
-          (insert char)
-        ;; * Base case
-        ;; Ignore newlines.
-        (while (looking-at "$")
-          (forward-char plus1))
-        (delete-char plus1)
-        (insert char)
-        (when negative (backward-char))))))
+  "Replace char at point without leaving normal mode."
+  (let ((char (char-to-string (divine-read-char))))
+    (divine-dotimes
+     (if (and (eq count 1) (looking-at "$"))
+         ;; * Special case: we're at the end of a line, and count is
+         ;; * 1: we append without replacing the \n
+         (insert char)
+       ;; Ignore newlines.
+       ;; * Base case
+       (while (looking-at "$")
+         (forward-char plus1))
+       (delete-char plus1)
+       (insert char)
+       (when negative (backward-char))))))
 
 ;;; Motions
 
@@ -97,17 +117,24 @@ If DELETE, region is deleted from buffer."
 (divine-defscope around)
 (divine-defscope inside)
 
+(defmacro divine-with-numeric-argument-and-scope (&rest body)
+  `(divine-with-numeric-argument
+    (let ((scope (divine-scope-p))
+          (around (divine-scope-around-flag))
+          (inside (divine-scope-inside-flag)))
+      ,@body)))
+
 ;;;; Character motion
 
 (divine-defmotion divine-char-forward
   "Move forward ARG character(s)."
-   (forward-char (divine-numeric-argument)))
+  (forward-char (divine-numeric-argument)))
 
 (divine-reverse-command 'divine-char-forward)
 
 (divine-defmotion divine-char-left
-   "Move backward ARG character(s), on the same line."
-   (left-char (divine-numeric-argument)))
+  "Move backward ARG character(s), on the same line."
+  (left-char (divine-numeric-argument)))
 
 (divine-reverse-command 'divine-char-left)
 
@@ -124,21 +151,12 @@ If DELETE, region is deleted from buffer."
 
 ;;;; Line motion
 
-(divine-defmotion divine-line-forward
-   "Move forward COUNT line(s)."
-   (divine-with-numeric-argument
-    (message "%s" count)
-    (forward-line count)))
-
-(divine-reverse-command 'divine-line-forward)
-
 (divine-defmotion divine-line-beginning
-  "Go to the beginning of current line."
-  (beginning-of-line))
-
-(divine-defmotion divine-line-end
-  "Go to the end of current line."
-  (end-of-line))
+  "Go to the first non-space character of current line."
+  (beginning-of-line)
+  (unless (looking-at "^[[:space:]]*$")
+    (search-forward-regexp (rx (not space)))
+    (backward-char)))
 
 (divine-defmotion divine-goto-line
   "Go to the line indicated by the prefix argument, or fail."
@@ -151,21 +169,35 @@ If DELETE, region is deleted from buffer."
   "Set mark at the first character of the current-line, and point at the last."
   (beginning-of-line)
   (push-mark (point))
-  (end-of-line (divine-numeric-argument)))
+  (end-of-line (divine-numeric-argument))
+  (unless (eobp) (forward-char)))
 
 ;;;; Word motion
 
- (divine-defmotion divine-word-forward
-   "Move COUNT word(s) forward."
-   (divine-with-numeric-argument
-    (message "Run: %s %s" (divine-scope-p) count)
-    (forward-word count)
-    ;; With a scope.
-    (when (divine-scope-flag)
-      (push-mark (point) t t)
-      (backward-word count))))
+(divine-defmotion divine-word-forward
+  "Move COUNT word(s) forward."
+  (divine-with-numeric-argument
+   (forward-word count)
+   ;; With a scope.
+   (when (divine-scope-flag)
+     (push-mark (point) t t)
+     (backward-word count))))
 
 (divine-reverse-command 'divine-word-forward)
+
+;;;; Buffer motion
+
+(divine-defmotion divine-beginning-of-buffer
+  "Move point to (point-min).
+
+Use this if you want to move to the absolute beginning of buffer."
+  (goto-char (point-min)))
+
+(divine-defmotion divine-end-of-buffer
+  "Move point to (point-max).
+
+Use this if you want to move to the absolute end of buffer."
+  (goto-char (point-max)))
 
 ;;;; Search
 
@@ -176,14 +208,14 @@ If DELETE, region is deleted from buffer."
    (unless (eq positive after) (forward-char minus1))))
 
 (divine-defmotion divine-find-char-forward-before
-   "Prompt for a character, then move point forward before the COUNTh occurence."
-   (divine--find-char-helper nil))
+  "Prompt for a character, then move point forward before the COUNTh occurence."
+  (divine--find-char-helper nil))
 
 (divine-reverse-command 'divine-find-char-forward-before)
 
 (divine-defmotion divine-find-char-forward-after
-   "Prompt for a character, then move point forward after the COUNTh occurence."
-   (divine--find-char-helper t))
+  "Prompt for a character, then move point forward after the COUNTh occurence."
+  (divine--find-char-helper t))
 
 (divine-reverse-command 'divine-find-char-forward-after)
 
@@ -215,32 +247,22 @@ If DELETE, region is deleted from buffer."
   "Move the subtree down."
   (outline-move-subtree-down (divine-numeric-argument)))
 
-;; ("p" outline-previous-visible-heading "prev")
-;; ("<down>" outline-previous-visible-heading "prev")
-;; ("n" outline-next-visible-heading "next")
-;; ("<up>" outline-next-visible-heading "prev")
-;; ("P" outline-move-subtree-up "up")
-;; ("N" outline-move-subtree-down "down")
-;; ("b" outline-promote "+")
-;; ("f" outline-demote "-")
-;; ("w" outshine-narrow-to-subtree "Narrow")
-;; ("c" outshine-cycle "Cycle")
-;; ("<tab>" outshine-cycle "Cycle")
-;; ("C" outshine-cycle-buffer "Cycle buffer")
-;; ("M-<tab>" outshine-cycle-buffer)
-;; ("o" outline-hide-other "Hide others"))
-
 ;;;; Balanced expressions (Lisp-mode)
 
 ;;;; Join lines?
 
 (divine-defaction divine-line-join
   "Join COUNT lines."
-  (join-line (divine-numeric-argument)))
+  (divine-dotimes
+   (join-line positive)))
+
+(divine-defaction divine-open-line
+  "Open COUNT lines before point, and move the point at the first.")
+
 
 ;;;; Saving and restoring stuff
 
-(divine-defoperator divine-text-save divine-whole-line
+(divine-defoperator divine-text-save
   "Save text to REGISTER or kill-ring."
   (divine--text-to-register-helper))
 
@@ -290,6 +312,11 @@ is active, toggle rectangle mode"
     (divine-mark-activate)
     (divine-mark-rectangle-activate)))
 
+
+;;; @FIXME Unsorted
+
+(divine-wrap-operator indent-region)
+
 ;;; Hybrids
 
 (divine-defcommand divine-bol-or-around
@@ -298,12 +325,12 @@ is active, toggle rectangle mode"
   (cond ((divine-accept-scope-p)
          (divine-scope-around-select))
         ((divine-accept-motion-p)
-         (beginning-of-line))
+         (divine-line-beginning))
         (t (divine-fail))))
 
 (divine-defcommand divine-insert-or-inside
-  "If there's a pending operator, maybe set the motion flag to 'around,
-  otherwise append at point."
+  "If there's a pending operator, maybe set the motion flag to 'inside,
+  otherwise insert at point."
   (cond ((divine-accept-scope-p)
          (divine-scope-inside-select))
         ((divine-accept-operator-p)
@@ -326,5 +353,3 @@ to the first character in line."
 ;;; Conclusion
 
 (provide 'divine-commands)
-
-;;; divine.el ends here

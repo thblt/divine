@@ -68,24 +68,17 @@
 If nil, use the foreground color of the default face."
   :type divine-custom-cursor-color-type)
 
-(defcustom divine-initial-mode-function 'divine-choose-initial-mode
-  "The function that runs the initial divine mode.
-
-Can be either `divine-choose-initial-mode', for a reasonably
-smart selection, one of the divine mode functions, eg
-function `divine-normal-mode', or your own function."
-  :type 'function)
-
-;; Variables
+;;; Variables
 
 (defvar-local divine--lighter nil
   "The current mode lighter.")
 
-(defvar divine--mode-lighters nil
-  "An alist of (MODE . LIGHTER)")
-
-(defvar divine--modes nil
+(defvar divine--mode-functions nil
   "List of known divine modes")
+
+(defvar divine--modes-symbols-alist nil
+  "A list of pairs associating short mode names to their
+  corresponding emacs symbol.")
 
 (defvar-local divine--active-mode nil
   "The currently active Divine mode.")
@@ -104,6 +97,9 @@ function `divine-normal-mode', or your own function."
 (defvar-local divine--transient-stack nil
   "Stack of modes to restore after a transient operation.")
 
+(defvar divine-pending-operator-hook nil
+  "Hook run when Divine enters or leaves pending operator state.")
+
 ;;; Core infrastructure
 
 ;;;; Control modes
@@ -112,16 +108,19 @@ function `divine-normal-mode', or your own function."
   "Divine, a modal interface with text objects, or something
   close enough."
   :lighter (:eval divine--lighter)
+  :group 'convenience
   (if divine-mode
       ;; Enter
       (progn
         (divine--finalize) ; Clear state variables, just in case.
         (add-hook 'pre-command-hook 'divine-pre-command-hook)
         (add-hook 'post-command-hook 'divine-post-command-hook)
-        (funcall divine-initial-mode-function))
+        (if (fboundp 'divine-start)
+            (divine-start)
+          (error "Function `divine-start' undefined.  See Divine manual.")))
     ;; Leave
-      (divine--disable-modes nil)
-      (divine--finalize)))
+    (divine--disable-modes nil)
+    (divine--finalize)))
 
 (define-globalized-minor-mode divine-global-mode divine-mode divine-mode)
 
@@ -142,11 +141,22 @@ function `divine-normal-mode', or your own function."
 (defun divine--finalize ()
   "Restore base state."
   (setq divine--object-scope nil
-        divine--pending-operator nil
         divine--ready-for-operator nil
         divine--register nil
         prefix-arg nil)
-  ;; Quit transient modes
+  (divine-abort-pending-operator)
+  (divine-quit-transient-modes))
+
+(defun divine-abort-pending-operator ()
+  ""
+  (when (divine-pending-operator-p)
+    (setq divine--pending-operator nil)
+    (run-hooks 'divine-pending-operator-hook)
+    t))
+
+
+(defun divine-quit-transient-modes ()
+  "Terminatate all transient modes."
   (while divine--transient-stack
     (funcall (pop divine--transient-stack) t)))
 
@@ -209,8 +219,8 @@ The numeric argument is consumed after it's been read, which
 means subsequent invocations will always return 1.  If NOCONSUME
 is non-nil, the argument isn't consumed.  This is probably not a
 good idea."
-    (prog1
-        current-prefix-arg
+  (prog1
+      current-prefix-arg
     (unless noconsume (setq current-prefix-arg nil))))
 
 (defun divine--numeric-argument-normalize (arg)
@@ -223,7 +233,7 @@ non-null integer."
    ((null arg) 1)
    ((eq '- arg) -1)
    ((listp arg) (car arg))
-    (  arg)))
+   (  arg)))
 
 ;;;;; Utility macros
 
@@ -348,8 +358,8 @@ Don't use this function to consume the scope, even if you have
 ;;;; Internal
 
 (defun divine--disable-modes (&optional except)
-  "Disable all modes in `divine--modes' except EXCEPT."
-  (dolist (mode divine--modes)
+  "Disable all modes in `divine--mode-functions' except EXCEPT."
+  (dolist (mode divine--mode-functions)
     (unless (eq mode except)
       (funcall mode 0)))
   (setq-local divine--active-mode except))
@@ -375,7 +385,7 @@ Don't use this function to consume the scope, even if you have
 (defun divine-accept-scope-p ()
   "Return non-nil in an object scope can be entered."
   (and (not (divine-scope-p))
-            (divine-accept-object-p)))
+       (divine-accept-object-p)))
 
 (defun divine-pending-operator-p ()
   "Return non-nil in Divine is waiting for a text motion to run on operator."
@@ -391,41 +401,42 @@ Don't use this function to consume the scope, even if you have
 ;;; High-level user interface
 ;;;; Mode definition interface
 
-(cl-defmacro divine-defmode (name docstring &key cursor cursor-color lighter transient-fn rname &aux (fname (symbol-name name)))
-  "Define the Divine mode NAME, with documentation DOCSTRING.
+(cl-defmacro divine-defmode (name docstring &key cursor cursor-color lighter mode-name transient-fn rname)
+  "Define the Divine mode ID, with documentation DOCSTRING.
 
-The following keyword arguments are accepted.
+NAME is a short identifier, like normal or insert.
+
+The following optional keyword arguments are accepted.
 
  - `:cursor' The cursor style for this mode, as a valid argument
    for `set-cursor', which see.
  - `:cursor-color' The cursor color for this mode, as an hex
    string or en Emacs color name.
  - `:lighter' The mode lighter.
+ - `:mode-name' The actual Emacs mode name. This defaults to divine-NAME-mode.
  - `:rname' A readable name for the mode, as a string.
  - `:transient-fn' The name of the function used to temporarily activate the mode."
   (declare (indent defun))
   ;; Guess :rname
   (unless rname
-    (unless (and (string-prefix-p "divine" fname)
-                 (string-suffix-p "-mode" fname))  ; Sanity check.
-      (error "I cannot guess :rname if name doesn't look like `divine-*-mode'"))
-    (setq rname (capitalize (substring fname 7 -5))))
+    (setq rname (capitalize (symbol-name name))))
   ;; Guess :lighter
   (unless lighter
     (setq lighter (format "<%s>" (substring rname 0 1))))
+  ;; Guess :mode-name
+  (unless mode-name
+    (setq mode-name (intern (format "divine-%s-mode" name))))
   ;; Guess :transient-fn
   (unless transient-fn
-    (let ((pos (cl-search "-" fname)))
-      (unless pos (error "I cannot guess :transient-fn if name doesn't contain at least one dash")) ; Sanity check.
-      (setq transient-fn (intern (format "%s-transient-%s" (substring fname 0 pos) (substring fname (1+ pos)))))))
+    (setq transient-fn (intern (format "divine-transient-%s-mode" name))))
 
   ;; Body
-  (let ((cursor-variable (intern (format "%s-cursor" name)))
-        (cursor-color-variable (intern (format "%s-cursor-color" name)))
-        (map-variable (intern (format "%s-map" name))))
+  (let ((cursor-variable (intern (format "%s-cursor" mode-name)))
+        (cursor-color-variable (intern (format "%s-cursor-color" mode-name)))
+        (map-variable (intern (format "%s-map" mode-name))))
     `(progn
        ;; Customization group
-       (defgroup ,name nil
+       (defgroup ,mode-name nil
          ,(format "Options for Divine %s mode." rname)
 	       :group 'divine)
        ;; Cursor style
@@ -438,23 +449,24 @@ The following keyword arguments are accepted.
        ;; Variables
        (defvar ,map-variable (make-keymap)
          ,(format "Keymap for Divine %s mode." rname))
-       (add-to-list 'divine--modes ',name)
+       (add-to-list 'divine--mode-functions ',mode-name)
+       (push '(,name . ,mode-name) divine--modes-symbols-alist)
        ;; Transient activation function
        (defun ,transient-fn ()
          ,(format "Transient activation function for Divine %s mode." rname)
          (interactive)
          (push divine--active-mode divine--transient-stack)
-         (,name))
+         (,mode-name))
        ;; Definition
-       (define-minor-mode ,name
+       (define-minor-mode ,mode-name
          ,docstring
          :lighter nil
          :keymap ,map-variable
-         (when ,name
+         (when ,mode-name
 	         (setq-local cursor-type (or ,cursor-variable divine-default-cursor))
            (set-cursor-color (or ,cursor-color-variable divine-default-cursor-color (face-attribute 'default :foreground)))
            (setq divine--lighter (format " Divine%s" ,lighter))
-           (divine--disable-modes ',name)
+           (divine--disable-modes ',mode-name)
            (force-mode-line-update))))))
 
 ;;;; Command definition interface
@@ -484,12 +496,8 @@ It is legal whenever an operator is, but is never pending."
 
 ;;;; Operator definition interface
 
-(defmacro divine-defoperator (name motion docstring &rest body)
+(defmacro divine-defoperator (name docstring &rest body)
   "Define a Divine operator NAME with doc DOCSTRING.
-
-If MOTION is non-nil, and this action is invoked twice in an
-immmediate sequence, it is run to create the region.  This allows
-to create commands like vim's dd.
 
 BODY is the code of the operator.  It's expected to work between
 point and mark.  It can read the current prefix argument, exactly
@@ -502,16 +510,25 @@ once, by calling `divine-argument'."
        (progn
          ,@body
          (divine-operator-done)))
-      ;; No region, and nothing pending: register ourselves
+      ;; No region, and nothing pending: register ourselves.
       ((not (divine-pending-operator-p))
        (divine-flash "Pending")
        (push-mark (point) t nil)
-       (setq divine--pending-operator ',name))
-      ;; We're pending: execute default motion and wait for
-      ;; repetition.
-      ((eq divine--pending-operator ',name)
-       (,motion))
+       (setq divine--pending-operator ',name)
+       (divine-quit-transient-modes)
+       (run-hooks 'divine-pending-operator-hook))
+      ;; Fail, probably because there's a pending operator already.
       (  (divine-fail)))))
+
+(cl-defmacro divine-wrap-operator (command &key ((:motion motion) 'divine-whole-line))
+  "Wrap the Emacs command COMMAND as a Divine operator.
+
+The resulting operotar is called divine-NAME."
+  (let ((name (intern (format "divine-%s" command))))
+    `(divine-defoperator ,name
+       ,motion
+       ,(format "Divine operator wrapper around `%s', which see." command)
+       (call-interactively ',command))))
 
 ;;;; Motion definition interface
 
@@ -599,8 +616,8 @@ Motion scope: %s"
           divine-version
           divine-mode
           divine--active-mode
-          (seq-filter (lambda (x) (symbol-value x)) divine--modes)
-          divine--modes
+          (seq-filter (lambda (x) (symbol-value x)) divine--mode-functions)
+          divine--mode-functions
           divine--transient-stack
           divine--pending-operator
           divine--ready-for-operator
@@ -614,6 +631,149 @@ Motion scope: %s"
       (with-temp-buffer
         (insert message)
         (kill-ring-save (point-min) (point-max))))))
+
+;;; Key binding interface
+
+(defvar divine-compile-bindings-immediately nil
+  "Whether Divine should compile bindings now or later.
+
+If non-nil, `divine-define-key' will immediately call
+`divine-compile-binding', which may be expensive in terms of
+performance.")
+
+(defvar divine--bindings (make-hash-table :test 'equal)
+  "Internal storage for Divine bindings.")
+
+(defconst divine--binding-states '(region-active
+                                   numeric-argument
+                                   repeated-binding
+                                   operator-pending
+                                   t)
+  "Valid states for divine conditional bindings, by order of evaluation.")
+
+(defun divine--make-binding-function-name (mode key)
+  "Make a unique symbol from MODE and KEY."
+  (intern (format "divine--%s-in-%s-mode" (key-description key) mode)))
+
+(cl-defun divine-define-key (mode key command &key ((:mode emacs-mode) 't) ((:state state) 't))
+  "Bind KEY to COMMAND in Divine mode MODE.
+
+ - MODE is the short name of a Divine mode, like 'normal or 'insert.
+
+ - STATE is a predicate that depends of the current
+   interactive state of Divine.  It usually corresponds to the
+   type of the command.
+
+
+ - EMACS-MODE is a symbol identifying an Emacs major or minor
+   mode.
+
+Bindings are compiled by `divine-compile-bindings', which see."
+  ;; Sanity checks
+  (unless (symbolp mode) (error "MODE must be a symbol"))
+  (unless (symbolp command) (error "COMMAND must be a symbol"))
+  (unless (symbolp emacs-mode) (error "In `:mode m', m must be a symbol"))
+  (unless (member state divine--binding-states)
+    (error "In `:state s', s must be one of %s, not %s" divine--binding-states state))
+  ;; Normalize key
+  (when (stringp key) (setq key (kbd key)))
+
+  (let ((name (divine--make-binding-function-name mode key))
+        (binding (list emacs-mode state command)))
+
+    ;; Create binding variable if necessary
+    (unless (boundp name)
+      (set name nil))
+
+    ;; Delete existing value, if any
+    (set name
+         (cl-delete-if
+          (lambda (b) (and
+                       (eq (car b) emacs-mode)
+                       (eq (cadr b) state)))
+          (symbol-value name)))
+
+    (when command
+      ;; Insert binding
+      (push binding (symbol-value name))
+
+      ;; Sort bindings
+      (set name (sort (symbol-value name) 'divine--binding<))
+
+      ;; Create function
+      (fset name (lambda () (interactive)
+                   "@TODO Docstring generation not implemented."
+                   (divine--run-binding (symbol-value name))))
+
+      ;; Create binding
+      (define-key
+        (symbol-value (intern (format "%s-map" (alist-get mode divine--modes-symbols-alist))))
+        key
+        (if (and
+             (eq 1 (length (symbol-value name)))
+             (eq t emacs-mode)
+             (eq t state))
+            command
+          name)))))
+
+
+
+(defun divine--eval-binding-predicate (pred)
+  (pcase pred
+    ('region-active (region-active-p))
+    ('numeric-argument (divine-numeric-argument-p))
+    ('repeated-binding (eq this-command last-command))
+    ('operator-pending (divine-pending-operator-p))
+    (_ t)))
+
+(cl-defun divine--run-binding (candidates &aux command)
+  (interactive)
+  (while (and candidates (not command))
+    (let ((cand (car candidates)))
+      (setq command (and (eval (car cand))
+                         (divine--eval-binding-predicate (cadr cand))
+                         (caddr cand))
+            candidates (cdr candidates))))
+  (if command
+      (funcall-interactively command)
+    (divine-fail)))
+
+(defun divine--string< (a b)
+  "Utility sort helper.  Like `string<', but sorts the symbol t
+after everything."
+  "Comparison function for bindings Emacs Mode value."
+  (cond ((string= a b) nil)
+        ((eq t a) nil)
+        ((eq t b) t)
+        (t (string< a b))))
+
+(defun divine--binding< (a b)
+  "Utility sort helper.  Compare bindings to sort them in a way
+that makes sense."
+  "Comparison function for bindings Emacs Mode value."
+  (let ((emode-a (car a))
+        (emode-b (car b))
+        (state-a (cadr a))
+        (state-b (cadr b))
+        (command-a (cadr a))
+        (command-b (cadr b)))
+    (if (eq emode-a emode-b)
+        (if (eq state-a state-b)
+            (string= command-a command-b)
+          (divine--state< state-a state-b))
+      (divine--string< emode-a emode-b))))
+
+(defun divine--state< (a b &optional list)
+  "Return t if a comes in LIST before B, nil otherwise.
+
+A and B are symbols, and should not be equal."
+  (unless list (setq list divine--binding-states))
+  (let ((x (car list)))
+    (cond
+     ((null list) nil)
+     ((eq x a) t)
+     ((eq x b) nil)
+     (t (divine--state< a b (cdr list))))))
 
 ;;; Conclusion
 
