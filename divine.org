@@ -7,20 +7,20 @@
 
 #+TEXINFO_DIR_CATEGORY: Emacs
 #+TEXINFO_DIR_TITLE: Divine: (divine).
-#+TEXINFO_DIR_DESC: Modal editing
-#+SUBTITLE: For version 0.0 (pre-alpha)
+#+TEXINFO_DIR_DESC: Modal editing interface
 
 #+TEXINFO_DEFFN: t
 #+OPTIONS: H:4 num:3 toc:2
-#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
-#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
+# Uncomment in 2021.
+# +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
+# +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
 
 Divine is a modal editing interface for Emacs, inspired by Vim, but
 which doesn't try to emulate Vim.  Instead, it attempts to bring modal
-editing that feels native to Emacs and integrate well with common
-Emacs bindings.
+editing to Emacs in a way that feels (reasonably) native and integrate
+well with common Emacs bindings.
 
-This manual is for Divine version 0.0 (pre-alpha)
+This manual is for Divine version call_git-rev().
 
 #+BEGIN_QUOTE
 Copyright (C) 2020 Thibault Polge <thibault@thb.lt>
@@ -36,6 +36,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 #+END_QUOTE
 :END:
+
+#+NAME: git-rev
+#+begin_src emacs-lisp :exports none :results raw
+  (shell-command-to-string "git describe --always")
+#+end_src
+
 
 #+NAME: describe
 #+begin_src emacs-lisp :var func='nil var='nil :exports none :results value raw hsilent
@@ -66,16 +72,19 @@ General Public License for more details.
         (buffer-string))))
 #+end_src
 
-#+CALL: describe(func='divine-defmode)
-
-#+CALL: describe(func='divine-define-key)
-
 * Introduction
 
-Divine is a modal editing interface for Emacs, inspired by Vim, but
-which doesn't try to emulate Vim.  Instead, it attempts to bring modal
-editing that feels native to Emacs and integrate well with common
-Emacs bindings.
+*Divine is beta software.*
+
+Divine is a lightweight and extensible modal interface for Emacs, with
+support for Vi-like text objects, but designed to integrate naturally
+with Emacs.
+
+Divine is made of three components: a (reasonably) complete modal
+interface for Emacs, a library of operators and text
+objects, and the core framework for building modal interfaces.  This
+README describe only the latter; if you wish to build your own modal
+interface with Divine, see the manual.
 
 * Installation
 
@@ -95,9 +104,62 @@ this manual to texinfo by running:
 
 ** TODO Install from Git, with Straight
 
-* Basic usage
+* A Tour of Divine
 
-This chapter
+This chapter is an informal introduction to Divine.
+
+** Starting Divine
+:PROPERTIES:
+:nonode: t
+:END:
+
+To get started, open any buffer you like and make sure you're in
+normal mode by running =M-x divine-normal-mode RET=. (Divine tries to
+be smart about the mode it starts in, so some buffers may start in
+insert mode)
+
+** Basic motion
+:PROPERTIES:
+:nonode: t
+:END:
+
+Basic motion is very close to ordinary Emacs commands: =F= will go
+forward one character, =B= backward.  =f= and =b= will move forward
+and backward a word, respectively.
+
+With =p= and =n=, you move to the previous
+and the next visible line, respectively.  =a= and =e= go to the
+beginning and end of the current line, =A= end =E= move through
+sentences.
+
+=isearch= is on =s=, =r= for backwards.  =S= and =R= activate regexp
+search.
+
+
+** Operators
+:PROPERTIES:
+:nonode: t
+:END:
+
+Like Vim and other modal editors, Divine has operators.  Operators are
+commands that act on a region.  Calling an operator with a non-empty
+region active will execute immediately.  In normal mode, mark some
+text (=m= toggles the mark) and press =d= to delete it.  If no region
+active region exists, the operator becomes “pending” until the point
+moves.  When the point has moved, it runs on the text range between
+the previous and the new point position.
+
+Here's a very simple example, again with =d=, the deletion operator.
+If you move to the end of a line and press =d=, the cursor starts
+blinking fast and “Pending” appears in the echo area.  Press =a= to go
+to the beginning of the line, and the line disappears (cancel with
+=u=).
+
+All the basic operators have a “magic” motion that can be triggered by
+pressing them twice: =dd= kills the current line, =cc= does the same,
+but enters insert mode immediately after, =ww= copies it to the
+kill-ring, and so on.
+
 
 * Fundamental concepts
 :PROPERTIES:
@@ -252,4 +314,57 @@ core.  All the core provides is a scope definition macro,
 
 
 
-* Test
+* Export data :noexport:
+
+#+begin_src css :tangle manual.css
+  @import url('https://fonts.googleapis.com/css?family=Montserrat:400,400i,700,700i&display=swap');
+
+
+
+  /* $base03:    #002b36; */
+  /* $base02:    #073642; */
+  /* $base01:    #586e75; */
+  /* $base00:    #657b83; */
+  /* $base0:     #839496; */
+  /* $base1:     #93a1a1; */
+  /* $base2:     #eee8d5; */
+  /* $base3:     #fdf6e3; */
+  /* $yellow:    #b58900; */
+  /* $orange:    #cb4b16; */
+  /* $red:       #dc322f; */
+  /* $magenta:   #d33682; */
+  /* $violet:    #6c71c4; */
+  /* $blue:      #268bd2; */
+  /* $cyan:      #2aa198; */
+  /* $green:     #859900; */
+
+  body {
+      font-family: Montserrat;
+      background:#fdf6e3;
+      color: #586e75;
+      max-width: 50em;
+      margin: auto;
+  }
+
+  a {
+      color: #268bd2;
+  }
+
+  a:visited {
+      color: #6c71c4;
+  }
+
+  body  div {
+      width: 30em;
+  }
+
+  blockquote {
+      background: #eee8d5;
+      border: thin solid black;
+      margin-left: 0;
+      margin-right: 0;
+      padding-left: 2em;
+      padding-right: 2em;
+
+  }
+#+end_src

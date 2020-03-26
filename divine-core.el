@@ -32,7 +32,8 @@
 
 ;;; Constants
 
-(defconst divine-version "0.0 alpha")
+(defconst divine-version "0.0"
+  "Divine version number.")
 
 (defconst divine-custom-cursor-type
   '(choice
@@ -127,7 +128,7 @@ If nil, use the foreground color of the default face."
 ;;;; Command hooks
 
 (defvar-local divine--point nil
-  "Saved value of point")
+  "Previous value of point")
 
 (defun divine-pre-command-hook ()
   (setq divine--point (point)))
@@ -153,7 +154,6 @@ If nil, use the foreground color of the default face."
     (setq divine--pending-operator nil)
     (run-hooks 'divine-pending-operator-hook)
     t))
-
 
 (defun divine-quit-transient-modes ()
   "Terminatate all transient modes."
@@ -500,8 +500,8 @@ It is legal whenever an operator is, but is never pending."
   "Define a Divine operator NAME with doc DOCSTRING.
 
 BODY is the code of the operator.  It's expected to work between
+point and mark.  It can read the current prefix argument, exactly
 once, by calling `divine-argument'."
-  point and mark.  It can read the current prefix argument, exactly
   (declare (indent defun))
   `(divine-defcommand ,name ,docstring
      (cond
@@ -539,7 +539,12 @@ point and the mark, as needed for a text object.  Neither motions
 nor objects must activate or deactivate the region."
   (declare (indent defun))
   `(divine-defcommand ,name ,docstring
-     ,@body))
+     ,@body
+     ;; divine-motion-done may be called, again, in the
+     ;; post-command-hook. This is unavoidable: some Divine motions
+     ;; may not move the point (for example, divine-line-contents on
+     ;; an empty line) but should run the pending operator regardless.
+     (divine-motion-done)))
 
 ;;;; Scope definition interface
 

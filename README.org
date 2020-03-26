@@ -1,14 +1,111 @@
-#+TITLE: Divine Is Not Evil — Modal editing in Emacs, with text objects or something close enough.
+#+TITLE: Divine, a modal interface for Emacs with text objects (or something close enough)
 
-Divine is a lightweight and extensible modal interface for Emacs, with
-support for Vi-like text objects, but designed to integrate naturally with
-Emacs.
+* Installation
 
-* Basic usage
-
-Divine comes with a simple tutorial.   To get started, put Divine somewhere in your =load-path=, then evaluate:
+Divine isn't on Melpa (yet!).  Simply clone the repository somewhere
+in your =load-path=, and
 
 #+begin_src emacs-lisp
   (require 'divine)
-  (divine-tutorial)
 #+end_src
+
+You can now activate divine in each buffer with =M-x divine-mode RET=,
+or globally with =M-x global-divine-mode RET=.  You can also activate
+it globally from your =init.el=:
+
+#+begin_src emacs-lisp
+  (divine-global-mode)
+#+end_src
+
+* Getting started
+
+
+** Basic motion
+
+Basic motion is very close to ordinary Emacs commands: =F= will go
+forward one character, =B= backward.  =f= and =b= will move forward
+and backward a word, respectively.
+
+With =p= and =n=, you move to the previous
+and the next visible line, respectively.  =a= and =e= go to the
+beginning and end of the current line, =A= end =E= move through
+sentences.
+
+=isearch= is on =s=, =r= for backwards.  =S= and =R= activate regexp
+search.
+
+** Operators
+
+Like Vim and other modal editors, Divine has operators.  Operators are
+commands that act on a region.  Calling an operator with a non-empty
+region active will execute immediately.  In normal mode, mark some
+text (=m= toggles the mark) and press =d= to delete it.  If no region
+active region exists, the operator becomes “pending” until the point
+moves.  When the point has moved, it runs on the text range between
+the previous and the new point position.
+
+Here's a very simple example, again with =d=, the deletion operator.
+If you move to the end of a line and press =d=, the cursor starts
+blinking fast and “Pending” appears in the echo area.  Press =a= to go
+to the beginning of the line, and the line disappears (cancel with
+=u=).
+
+All the basic operators have a “magic” motion that can be triggered by
+pressing them twice: =dd= kills the current line, =cc= does the same,
+but enters insert mode immediately after, =ww= copies it to the
+kill-ring, and so on.
+
+| Default binding | Action                                             |
+|-----------------+----------------------------------------------------|
+| =c= (change)    | Kill REGION to REGISTER then switch to insert mode |
+| =d= (delete)    | Kill REGION to REGISTER                            |
+| =w= (delete)    | Copy REGION to REGISTER                            |
+| =SPC w=         | Wrap REGION (prompt for char)                      |
+
+REGISTER defaults to the kill-ring.
+
+** Text objects
+
+Text objects are motion commands that set both the point and the mark,
+and thus define a region.  There are two types of text objects: scoped
+motions, which are motions that accept a scope modifier, and pure text
+objects, which cannot be used as motions.
+
+*** Scoped motions
+
+Divine has two standard scopes: =around= and =inside=, activated by
+=a= and =i=, respectively.  Most basic motion commands respect these
+scopes, and behave as text objects when one is active.  For example,
+=di2w= will delete two full words, starting from the one the point's
+on.  =da2w= will do the same, also eating the surrounding space.
+
+#+CAPTION: Standard scope selectors
+| =a= | Activate the =around= scope. |
+| =i= | Activate the =inside= scope. |
+
+*** Pure objects
+
+Pure objects accept scope modifiers, but don't behave as motions even
+without one.  Divine has only one such object, =w=, which is the
+balanced expression object.  It takes an extra parameter, which is the
+delimiter to look for.  For example, =d2w(= will unwrap both
+parentheses around the second sexp around point.  =di2w(= will delete
+inside the sexp, and =da2w(= will also delete the parentheses.
+
+#+CAPTION: Standard pure text objects
+| =w= | Balanced expression around point1 |
+
+=w= is a *special object*.  Special objects can hot-replace a pending
+operator with their own implementation.  When called without a scope
+modifier, =w= will hot-replace =divine-change= by =divine-rewrap=, and
+=divine-delete= by =divine-unwrap=.
+
+** Regions
+
+Divine has no equivalent to Vim's visual modes.  Instead, activating
+the region with =m= modifies the behavior of some commands.  Operators
+run immediately and most actions are disabled.
+
+| =M=             | Toggle region                |
+| =m=             | Toggle full lines only       |
+| =C-m=           | Toggle rectangular mark mode |

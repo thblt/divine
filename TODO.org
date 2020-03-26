@@ -1,107 +1,13 @@
-* Generalize scopes
+* TODO Create special modes and maps
+
+ - For when the region is active.
+ - For when numeric argument is non-nil.
+
+* TODO Generalize scopes
 
 The implicit assumption that scopes only apply to text objects is
 limited.
 
-* Simplify motion
+* TODO Support repeated insertion?
 
-<wasamasa> thblt: evil does it in the pre/post-command-hook by comparing the last value of point
-<wasamasa> thblt: anything below that level of granularity is overkill  [20:34]
-
-THIS IS DONE,
-
-* Binding keys
-
-In Divine, a single key can have multiple meanings: it can be a
-numeric argument, an action, an operator, a scope, a motion, an object…
-The following table summarizes these possibilities:
-
-| Type             | Usage                                   |
-|------------------+-----------------------------------------|
-| numeric argument | Set the number of repetitions           |
-| motion           | Sets the point                          |
-| object           | Sets the point and the mark             |
-| action           | Do something besides moving the cursor  |
-| operator         | Do something on a region                |
-| scope            | Determines the scope of a future motion |
-
-# A given key in a given mode can be bound as only one element of each
-# mutex group.  This limitation comes from the fact that elements in the
-# same mutex group are valid in the same context.
-
-Notice that even if in selection mode, a scope can appear as the first
-element in a command sequence, this doesn't create any ambiguity:
-selection mode in divine is actually an RPN mode, where commands come
-/after/ the definition of a region.  So the same key can bind a scope
-and an operator, and context will be enough to discriminate.
-
-Another possible way to discriminate between bindings is the presence
-of a numeric argument. Some commands, like =g=, behave like this: with
-a numeric argument, it goes to the line indicated by this argument;
-without, it behaves as a command prefix.
-
-Binding a key in divine is performed using the =divine-define-key=
-macro, whose prototype is as follows:
-
- - *divine-define-key* /DIVINE-MODE/ /KEY/ /COMMAND/ [:in /MODE/] [:as /TYPE/] [:when /PREDICATE/] ::
-
-   Bind KEY to COMMAND in DIVINE-MODE, with PREDICATE.
-
-   DIVINE-MODE is the short name of a Divine mode, like 'normal or 'insert.
-
-   TYPE is the type of the command.  In most cases, Divine can guess
-   and the type can be ignored.  If you need to pass it.  The following types are accepted
-
-   MODE is a symbol identifying an Emacs major or minor mode.
-
-   PREDICATE determines condition that must hold for the binding to be
-   executed.  It thus allows multiple commands to easily share the
-   same binding.
-
-     - =:always=      :: Always match.
-     - =:mode MODE=   :: Match iff MODE is active.
-     - =:when COND=   :: Match iff COND evals to non-nil.
-     - =:numeric-arg= :: Match states where a numeric argument is
-       legal.
-     - =:motion=      :: Match states where a motion is legal.
-     - =:object=      :: Match states where a text object is
-       legal. This is a more narrow set of cases than :motion, because
-       it requires that moving the mark makes sense.
-     - =:action=      :: Match states where an action is legal.
-     - =:operator=    :: Match states where an operator is legal.
-     - =:operator2=   :: Match the special case where an operator has
-       just been entered, is pending, and is repeated.
-     - =:scope=       :: Match states where a scope modifier is legal.
-
-   PREDICATE is compiled by =divine-compile-predicate=, which see.
-
-
-For example, this is how =g= is bound:
-
-#+begin_src emacs-lisp
-  (divine-define-key 'normal "g"
-    (:motion :has-numeric-arg) 'divine-goto-line
-    :command 'divine-enter-g-mode)
-  #+end_src
-
-Internally, the macro creates a function and an alist, both called
-=divine---MODE-KEY=, and binds the function to the given key in the
-mode's map.  When called, it calls =divine-run-binding= with the alist
-as its unique argument.
-
- - *divine-run-binding* /KEY/ /BINDING/. ::
-
-   Run BINDING, triggered by user pressing KEY.
-
-   BINDING is an alist created by `divine-define-key`, which see.
-
-   States, are tested in the order specified by
-   =divine-binding-state-priorities=, which was normally set by the
-   mode.
-
-   Specifier lists are then evaluated by descending order of length;
-   all lists of a given length are evaluated together.  If more than
-   one matches, execute =divine-panic=.  If only one matches, it is
-   run. If nothing matches, the function proceeds to the next state.
-
-   If no state matches, =divine-fail= is called.
+Vim can do COUNT i {type something} ESC.

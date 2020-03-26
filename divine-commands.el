@@ -34,15 +34,6 @@
 
 ;;; Customizations
 
-(defcustom divine-paragraphs-are-defuns 'divine-prog-mode-p
-  "Determine whether P and N should move by defuns instead of paragraphs.
-
-This can be either t, nil, or a function that returns a boolean value."
-  :group 'divine
-  :type '(choice (const :tag "Always" t)
-                 (const :tag "Never" nil)
-                 (function :tag "Predicate")))
-
 (defcustom divine-pair-aliases '((?p . ?\()
                                  (?P . ?\))
                                  (?b . ?\[)
@@ -54,6 +45,11 @@ This can be either t, nil, or a function that returns a boolean value."
   the (re)wrapping commands to let you more easily enter pair
   prefixes."
   :type '(alist :key-type character :value-type character))
+
+;;; Variables
+
+(defvar divine--macro-register nil
+  "Register to save the current macro to.")
 
 ;;; Utilities
 
@@ -139,17 +135,6 @@ If DELETE, region is deleted from buffer."
   (left-char (divine-numeric-argument)))
 
 (divine-reverse-command 'divine-char-left)
-
-(divine-defmotion divine-paragraph-forward
-  "Move forward ARG paragraph(s)."
-  (search-forward-regexp divine--blank-line-regexp nil nil (divine-numeric-argument))
-  (while (looking-at divine--blank-line-regexp) (forward-line)))
-
-(divine-defmotion divine-paragraph-backward
-  "Move backward ARG paragraph(s)."
-  (search-backward-regexp divine--blank-line-regexp nil nil (1+ (divine-numeric-argument)))
-  (while (looking-at divine--blank-line-regexp) (forward-line -1))
-  (start-of-paragraph-text))
 
 ;;;; Line motion
 
@@ -266,9 +251,17 @@ Use this if you want to move to the absolute end of buffer."
   (divine-dotimes
    (join-line positive)))
 
-(divine-defaction divine-open-line
-  "Open COUNT lines before point, and move the point at the first.")
+(divine-defaction divine-line-open-forward
+  "Open COUNT lines before point, and move the point at the first."
+  (divine-with-numeric-argument
+   (if positive (end-of-line)
+     (beginning-of-line)
+     (backward-char))
+   (insert "\n")
+   (if positive (end-of-line) (beginning-of-line))
+   (divine-commands-switch-to-insert-mode)))
 
+(divine-reverse-command 'divine-line-open-forward)
 
 ;;;; Saving and restoring stuff
 
@@ -326,11 +319,30 @@ is active, toggle rectangle mode"
 
 (divine-wrap-operator indent-region)
 
+;;; Macros
+
+(divine-defaction divine-macro-start
+  "Begin recording macro into REGISTER."
+  (assert (not defining-kbd-macro))
+  (setq divine--macro-register (divine-register))
+  (kmacro-start-macro nil))
+
+(divine-defaction divine-macro-end
+  "Stop recording macro."
+  (kmacro-end-macro nil)
+  (when divine--macro-register
+    (kmacro-to-register divine--macro-register)
+    (setq divine--macro-register nil)))
+
+;; @FIXME Support calling from register.
+(divine-defaction divine-macro-call
+  "Execute macro from REGISTER COUNT times."
+  (kmacro-call-macro (divine-numeric-argument nil) nil ))
+
 ;;; Smartparens
 
 (divine-defoperator divine-wrap
-  "Prompt for character, then wrap region with it."
-  )
+  "Prompt for character, then wrap region with it.")
 
 ;;; Hybrids
 

@@ -1,9 +1,14 @@
-(when noninteractive
-  (setq load-prefer-newer t)
-  (add-to-list 'load-path (expand-file-name ".." (file-name-directory load-file-name))))
-
 (require 'ert)
 (require 'divine-core)
+
+(ert-deftest divine--meta-check-versions ()
+  "Validate that all files have the same version field, and that
+it's equal to divine-version."
+  (dolist (file (directory-files (file-name-directory (symbol-file 'divine-core)) t "\\.el$" ))
+    (with-temp-buffer
+      (insert-file-contents file)
+      (if (search-forward-regexp "^;; Version: \\(.*\\)$" nil t)
+          (should (string= divine-version (match-string 1)))))))
 
 (ert-deftest divine--numeric-argument-normalize ()
   (should (eq 12 (divine--numeric-argument-normalize 12)))
@@ -35,7 +40,3 @@
   (divine-reverse-command 'divine-numeric-argument divine-core-tests--numeric-arg-reversed)
   (setq current-prefix-arg 4)
   (should (eq -4 (divine-core-tests--numeric-arg-reversed))))
-
-(when noninteractive
-    (message "Divine %s\n" divine-version)
-  (ert-run-tests-batch t))

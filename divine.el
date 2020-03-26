@@ -41,6 +41,32 @@
 
 ;;; Control
 
+(defcustom divine-initial-mode-rules
+  '((magit-status-mode divine-off-mode)
+    (pdf-view-mode divine-off-mode)
+    (mu4e-view-mode divine-off-mode)
+    (mu4e-headers-mode divine-off-mode)
+    (string= (buffer-name) "*mu4e-headers" divine-off-mode)
+    ;; buffers don't start in mu4e-headers-mode, so we also need this rule
+    (mu4e-main-mode divine-off-mode)
+    ((and (not buffer-read-only)
+          (eq (point-min) (point-max)))
+     divine-insert-mode)
+    (buffer-read-only divine-insert-mode)
+    (t divine-normal-mode))
+  "H"
+  :group 'divine )
+
+(defun divine--start-eval-rule (rule)
+  "Evaluate a single entry in the form of
+  `divine-initial-mode-rules'."
+  (let ((pred (car rule)))
+    (when (eval
+           (if (symbolp pred)
+               `(bound-and-true-p ,pred)
+             pred))
+      (cdr rule))))
+
 (defun divine-start (&optional buffer)
   "Pick an appropriate initial mode for BUFFER.
 
@@ -53,15 +79,12 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (add-hook 'divine-pending-operator-hook 'divine--toggle-pending-operator-indicator)
 
   (with-current-buffer (or buffer (current-buffer))
-    (cond ((eq (point-min) (point-max))
-           (divine-insert-mode t))
-          ;; Major modes that deactivate Divine
-          ((member major-mode '(magit-status-mode pdf-view-mode mu4e-view-mode mu4e-headers-mode mu4e-main-mode))
-           (divine-off-mode t))
-          ;; Buffer names that deactivate Divine
-          ((member (buffer-name) '("*mu4e-headers"))
-           (divine-off-mode t))
-          (t (divine-normal-mode t)))))
+    (if-let ((func (cl-some 'divine--start-eval-rule divine-initial-mode-rules)))
+        (funcall (car func))
+      (error "Traversal of `divine-initial-mode-rules' ended without an initial mode.")
+      )))
+
+(funcall-interactively 'toggle-debug-on-error)
 
 (defun divine-abort ()
   "Abort what needs to be aborted."
@@ -79,7 +102,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 
 (defun divine-init-normal-keymap (mode)
   (divine-define-key mode [remap self-insert-command] 'divine-fail)
-  (divine-define-key mode "0" 'divine-zero :state 'digit-argument)
+  (divine-define-key mode "0" 'divine-zero :state 'numeric-argument)
   (divine-define-key mode "0" 'beginning-of-line)
   (divine-define-key mode "1" 'digit-argument)
   (divine-define-key mode "2" 'digit-argument)
@@ -92,8 +115,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (divine-define-key mode "9" 'digit-argument)
   (divine-define-key mode "-" 'negative-argument)
   (divine-define-key mode "\"" 'divine-select-register)
-  (divine-define-key mode [remap keyboard-quit] 'divine-abort)
-  keymap)
+  (divine-define-key mode [remap keyboard-quit] 'divine-abort))
 
 ;;;; Utilities
 
@@ -105,35 +127,43 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-init-normal-keymap 'normal)
 ;; Eat characters.
 ;; Character motion
-(divine-define-key 'normal "b" 'backward-char)
+(divine-define-key 'normal "B" 'backward-char)
 (divine-define-key 'normal "<left>" 'left-char)
-(divine-define-key 'normal "f" 'forward-char)
+(divine-define-key 'normal "F" 'forward-char)
 (divine-define-key 'normal "<right>" 'right-char)
-(divine-define-key 'normal "B" 'divine-word-backward)
-(divine-define-key 'normal "F" 'divine-word-forward)
+(divine-define-key 'normal "b" 'divine-word-backward)
+(divine-define-key 'normal "f" 'divine-word-forward)
 ;; (define-key divine-normal-mode-map (kbd "<spc>") 'activate-mark)
 ;; Lines
-(divine-define-key 'normal "p" 'previous-line)
-(divine-define-key 'normal "e" 'end-of-line)
 (divine-define-key 'normal "<down>" 'next-line)
-(divine-define-key 'normal "n" 'next-line)
 (divine-define-key 'normal "<up>" 'previous-line)
+(divine-define-key 'normal "A" 'divine-line-beginning)
+                                        ;(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
+(divine-define-key 'normal "E" 'end-of-line)
+(divine-define-key 'normal "n" 'next-line)
+(divine-define-key 'normal "p" 'previous-line)
 ;; Paragraph motion
-(divine-define-key 'normal "P" 'divine-paragraph-backward)
-(divine-define-key 'normal "N" 'divine-paragraph-forward)
+(divine-define-key 'normal "P" 'backward-paragraph)
+(divine-define-key 'normal "N" 'forward-paragraph)
 ;; Buffer motion
 (divine-define-key 'normal "g" 'divine-goto-line :state 'numeric-argument)
 (divine-define-key 'normal "g" 'divine-transient-g-mode)
 (divine-define-key 'normal "G" 'divine-end-of-buffer)
-;; Searche
+;; Other basic motion
+(divine-define-key 'normal "C-a" 'backward-sentence)
+(divine-define-key 'normal "C-e" 'forward-sentence)
+;; Search
 (divine-define-key 'normal "t" 'divine-find-char-forward-before)
 (divine-define-key 'normal "T" 'divine-find-char-backward-before)
 (divine-define-key 'normal "l" 'divine-find-char-forward-after)
 (divine-define-key 'normal "L" 'divine-find-char-backward-after)
+(divine-define-key 'normal "s" 'isearch-forward)
+(divine-define-key 'normal "S" 'isearch-forward-regexp)
+(divine-define-key 'normal "r" 'isearch-backward)
+(divine-define-key 'normal "R" 'isearch-backward-regexp)
 ;; Insertion
-(divine-define-key 'normal "a" 'divine-line-beginning)
-(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
-(divine-define-key 'normal "o" 'divine-open-line)
+(divine-define-key 'normal "RET" 'divine-line-open-forward)
+(divine-define-key 'normal "M-RET" 'divine-line-open-backward)
 (divine-define-key 'normal "c" 'divine-change)
 (divine-define-key 'normal "c" 'divine-line-contents :state 'repeated-binding)
 (divine-define-key 'normal "c" 'divine-change)
@@ -163,8 +193,9 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-define-key 'normal "m" 'divine-mark-toggle)
 (divine-define-key 'normal "M" 'divine-mark-rectangle-toggle)
 ;; Macros
-(divine-define-key 'normal "Q" 'divine-start-or-end-macro)
-(divine-define-key 'normal "q" 'divine-play-macro)
+(divine-define-key 'normal "Q" 'divine-macro-start)
+(divine-define-key 'normal "Q" 'divine-macro-end :mode 'defining-kbd-macro)
+(divine-define-key 'normal "q" 'divine-macro-call)
 (divine-define-key 'normal "M-i" 'counsel-imenu)
 ;; Leader-ish bindings
 (divine-define-key 'normal "SPC s" 'save-buffer)
@@ -178,7 +209,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "A purely transient mode for the `g' command."
   :cursor 'hollow)
 
-(divine-init-normal-keymap divine-g-mode-map)
+(divine-init-normal-keymap 'g)
 
 (divine-define-key 'g "g" 'divine-beginning-of-buffer)
 (divine-define-key 'g "l" 'divine-transient-folds-mode)
@@ -189,7 +220,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "A mode to work on folds and outlines."
   :cursor-color "ForestGreen")
 
-(divine-init-normal-keymap divine-folds-mode-map)
+(divine-init-normal-keymap 'folds)
 (divine-define-key 'folds "p" 'outline-previous-visible-heading)
 (divine-define-key 'folds "n" 'outline-next-visible-heading)
 (divine-define-key 'folds "P" 'outline-move-subtree-up)
@@ -225,7 +256,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   :cursor 'box
   :cursor-color "MediumVioletRed")
 
-(divine-init-normal-keymap divine-sexp-mode-map)
+(divine-init-normal-keymap 'sexp)
 
 (divine-define-key 'sexp "s" 'divine-wrap)
 (divine-define-key 'sexp "f" 'sp-forward-sexp)
