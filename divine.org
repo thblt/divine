@@ -5,12 +5,13 @@
 #+DATE: 2020
 #+LANGUAGE: en
 
+#+TEXINFO_DEFFN: t
 #+TEXINFO_DIR_CATEGORY: Emacs
 #+TEXINFO_DIR_TITLE: Divine: (divine).
+
 #+TEXINFO_DIR_DESC: Modal editing interface
 
-#+TEXINFO_DEFFN: t
-#+OPTIONS: H:4 num:3 toc:2
+#+OPTIONS: H:4 num:2 toc:2
 # Uncomment in 2021.
 # +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
 # +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
@@ -23,17 +24,17 @@ well with common Emacs bindings.
 This manual is for Divine version call_git-rev().
 
 #+BEGIN_QUOTE
-Copyright (C) 2020 Thibault Polge <thibault@thb.lt>
+  Copyright \copy 2020 Thibault Polge <thibault@thb.lt>
 
-You can redistribute this document and/or modify it under the terms
-of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any
-later version.
+  You can redistribute this document and/or modify it under the terms
+  of the GNU General Public License as published by the Free Software
+  Foundation, either version 3 of the License, or (at your option) any
+  later version.
 
-This document is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
+  This document is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
 #+END_QUOTE
 :END:
 
@@ -51,7 +52,7 @@ General Public License for more details.
                     (t (error "Cannot describe %s as a function or %s as a variable." func var))))
           (doc (documentation func t)) )
       (with-temp-buffer
-        (insert (format " - %s: *%s*\n\n" type (symbol-name func)))
+        (insert (format " - %s: %s \n\n" type (symbol-name func)))
         (if func (insert (documentation func nil)) (documentation-property var 'variable-documentation nil))
         (when func
           (goto-char (point-max))
@@ -61,10 +62,8 @@ General Public License for more details.
           (kill-line)
           (goto-char (point-min))
           (end-of-line)
-          (insert " /")
           (yank)
-          (insert "/")
-          ;; Indent
+            ;; Indent
           (while (not (eobp))
             (next-logical-line)
             (beginning-of-line)
@@ -72,7 +71,7 @@ General Public License for more details.
         (buffer-string))))
 #+end_src
 
-* Introduction
+* TODO Introduction
 
 *Divine is beta software.*
 
@@ -90,7 +89,7 @@ interface with Divine, see the manual.
 
 ** Manual installation
 
-Clone the source repository somewhere in your =load-path=, and convert
+Clone the source repository somewhere in your ~load-path~, and convert
 this manual to texinfo by running:
 
 #+begin_src shell
@@ -98,14 +97,25 @@ this manual to texinfo by running:
   install-info divine.info --dir=dir
 #+end_src
 
+Then load Divine from Emacs
+
+#+begin_src emacs-lisp
+  (require 'divine)
+  (divine-global-mode)
+#+end_src
+
 ** TODO Install from Melpa
+
+Divine is not yet available from Melpa. When it will be,
 
 ** TODO Install from Git, with Borg
 
 ** TODO Install from Git, with Straight
 
 * A Tour of Divine
-
+:PROPERTIES:
+:custom_id: tour
+:END:
 This chapter is an informal introduction to Divine.
 
 ** Starting Divine
@@ -117,6 +127,9 @@ To get started, open any buffer you like and make sure you're in
 normal mode by running =M-x divine-normal-mode RET=. (Divine tries to
 be smart about the mode it starts in, so some buffers may start in
 insert mode)
+
+The minor mode lighter shows the active state.  It should display
+=Divine<N>=.
 
 ** Basic motion
 :PROPERTIES:
@@ -136,43 +149,122 @@ sentences.
 search.
 
 
-** Operators
-:PROPERTIES:
-:nonode: t
-:END:
 
-Like Vim and other modal editors, Divine has operators.  Operators are
-commands that act on a region.  Calling an operator with a non-empty
-region active will execute immediately.  In normal mode, mark some
-text (=m= toggles the mark) and press =d= to delete it.  If no region
-active region exists, the operator becomes “pending” until the point
-moves.  When the point has moved, it runs on the text range between
-the previous and the new point position.
-
-Here's a very simple example, again with =d=, the deletion operator.
-If you move to the end of a line and press =d=, the cursor starts
-blinking fast and “Pending” appears in the echo area.  Press =a= to go
-to the beginning of the line, and the line disappears (cancel with
-=u=).
-
-All the basic operators have a “magic” motion that can be triggered by
-pressing them twice: =dd= kills the current line, =cc= does the same,
-but enters insert mode immediately after, =ww= copies it to the
-kill-ring, and so on.
-
-
-* Fundamental concepts
+* Editing with Divine
 :PROPERTIES:
 :custom_id: fundamental-concepts
 :END:
 
-This section describes the fundamental concepts of Divine.
+This section is a complete presentation of the Divine editing
+features.  A less formal, but less complete, presentation can be found
+in [[#tour]], which is a recommended read.
 
-People who wish to use Divine as a framework should read this section
-closely.  Although most examples assume that the standard Divine
-interface, its presentation is general enough.
+People who wish to build their own modal interface over the Divine
+core may skip most of this chapter, but should nonetheless read the
+description of the fundamental Divine concepts at the top of each node.
+
+** Motion commands
+
+*** About motions
+:PROPERTIES:
+:nonode: t
+:END:
+
+In Divine, a *motion* is a command that moves the point around.
+Divine motions are nothing special, and are often regular Emacs
+commands.  Motions can be used in two ways.  You can use them like in
+regular Emacs, to move around in a buffer.  They can also be combined
+with [[#operators]] to determine the region they operate on.
+
+Divine provides the following motion commands:
+
+*** Basic motion
+:PROPERTIES:
+:nonode: t
+:END:
+
+ - Key: =b=, COUNT word(s) forward.
+ - Key: =f=, COUNT word(s) backward.
+ - Key: =B=, COUNT words(s) forward, in ~superword-mode~.
+ - Key: =F=, COUNT words(s) backward, in ~superword-mode~.
+ - Key: =C-B=, COUNT characters(s) forward.
+ - Key: =C-F=, COUNT characters(s) backward.
+ - Key: =p= , COUNT line(s) forward.
+ - Key: =n=, COUNT line(s) backward.
+ - Key: =p= , COUNT paragraphs(s) forward.
+ - Key: =n=, COUNT paragraphs(s) backward.
+ - Key: =a= , to the first non last character of current line.
+ - Key: =e=, to the first non blank character of current line.
+
+*** Moving by searching
+:PROPERTIES:
+:nonode: t
+:END:
+
+- Key: =t=, Before COUNTh occurrence of CHAR forward (after if SCOPE).
+- Key: =T=, Before COUNTh occurrence of CHAR backward (after if SCOPE).
+- Key: =s=, isearch forward.
+- Key: =S=, isearch backward.
+
+*** Moving around balanced expressions
+:PROPERTIES:
+:nonode: t
+:END:
+
+
+** Text objects
+
+A text object is similar to a motion, except that it can move both the
+point and the mark.  There are two types of text objects: scoped
+motions, which are motions that accept a scope modifier, and pure text
+objects, which cannot be used as motions.
+
+*** Scopes
+:PROPERTIES:
+:nonode: t
+:END:
+
+Divine has two standard scopes: =inside= and =around=, activated by
+=i= and =ii=, respectively.  Most basic motion commands respect these
+scopes, and behave as text objects when one is active.  For example,
+=di2w= will delete two full words, starting from the one the point's
+on.  =da2w= will do the same, also eating the surrounding space.
+
+*** Standard text objects
+:PROPERTIES:
+:nonode: t
+:END:
+
+*** Special text object
+:PROPERTIES:
+:nonode: t
+:END:
+
+A special text object is a text object that can replace a pending
+operator with an alternative, before executing it.  The only special
+object in standard Divine is =w=.
+
+ - Key: =w=, Balanced expression text object.
+
+   Prompt for a pair delimiter, and selects the COUNTh balanced
+   expression containing the point and bounded by this delimiter.
+
+   If SCOPE is =inside=, the contents of the expressions are selected.
+
+   If SCOPE is =around=, the delimiters are selected as well.
+
+   If no SCOPE, and =divine-kill= or =divine-change= are pending, =w=
+   replaces them with ~divine-unwrap~ or ~divine-rewrap~,
+   respectively.
+
+** Actions
+
+- Key: =r=, replace character at point.
+- Key: =x=, kill character at point.
+
 
 ** Modes
+
 
 Divine is a modal interface.  A modal interface is an interface in
 which the results of an action is determined by the current mode.
@@ -201,41 +293,40 @@ way they're bound in regular Emacs.  Because Divine underlying
 interface is a bit more tricky than Emacs',
 
 ** Operators
+:PROPERTIES:
+:custom_id: operators
+:END:
 
-An *operator* is a command that operates on a region.  Actions are
-normally bound to Normal mode.  If an action is invoked with an
-existing, non empty region, it is run immediately on this region.
+*** What are operators?
+:PROPERTIES:
+:nonode: t
+:END:
 
-Otherwise, the normal mode switches to the “pending object” state.  In
-this state, the next motion action creates a region, and the command
-is run on this region.  For example, the sequence:
+Like Vim and other modal editors, Divine has *operators*.  At their
+core, most operators are commands that act on a region.  If a region
+is active, invoking an operator will run it on that region, in the
+same way Emacs' ordinary ~*-region~ commands act (as an example,
+pressing =d= will immediately delete the region).  If no region is
+active, though, Divine enters the “pending operator” state.  The
+operator is then said to be “pending”, and will run as soon as the
+point moves, between its previous and new positions.
 
-#+begin_example
-  d5F
-#+end_example
+*** Standard operators
+:PROPERTIES:
+:nonode: t
+:END:
 
-will delete the five next words.
+The first three operators' bindings can be pressed twice to operate on
+the curent line.  For example, =dd= kills the current line.
 
- - =d= is the default binding to the kill command.  If d is run on a
-   region, the region is immediately deleted and copied to kill ring.
- - =5= is a regular prefix argument
- - =F= is the default binding for the forward word command.
+ - Key: =d=, Kill REGION* to REGISTER.
+ - Key: =c=, Kill REGION* to REGISTER, then enter insert mode.
+ - Key: =w=, Copy REGION* to REGISTER.
 
-** Motion and text objects
+ - Key: =w=, wrap REGION.
+ - Key: =SPC o=, Sort REGION.
 
-*Motions* are commands that move the point around.  If they're entered
-without a pending operator, they move the point and terminate
-immediately.  If there's a pending operator, they move the point and
-execute this operator on the resulting region.
 
-A *Text object* is a motion command that move both the point AND
-the mark.
-
-Motions can have *scopes*.
-
-** Numeric arguments
-
-Like Emacs, Divine operators
 
 * Extending Divine
 :PROPERTIES:
@@ -247,15 +338,7 @@ motions, and modes on top of the standard interface.
 
 ** Creating operators
 
-A Divine operator is a command that operates on an existing region, if
-there's one (usually in one of the =select-*-modes=), or that declares
-itself as “pending” until a motion command has created a region.
-
-#+CALL:describe(func='divine-defcommand,var=3)
-
-#+RESULTS:
-:  - FUNCTION: *divine-defcommand*
-:
+#+CALL:describe(func='divine-defoperator)
 
 To access the prefix argument from within an operator, see
 [[#reading-prefix-arg]].
@@ -311,15 +394,10 @@ core.  All the core provides is a scope definition macro,
 #+CALL: describe(func='divine-defscope)
 
 ** Key binding interface internals
-
-
-
-* Export data :noexport:
+* Export data                                                      :noexport:
 
 #+begin_src css :tangle manual.css
   @import url('https://fonts.googleapis.com/css?family=Montserrat:400,400i,700,700i&display=swap');
-
-
 
   /* $base03:    #002b36; */
   /* $base02:    #073642; */
@@ -340,7 +418,8 @@ core.  All the core provides is a scope definition macro,
 
   body {
       font-family: Montserrat;
-      background:#fdf6e3;
+      background: #eee8d5;
+background: #fdf6e3;
       color: #586e75;
       max-width: 50em;
       margin: auto;
@@ -354,17 +433,38 @@ core.  All the core provides is a scope definition macro,
       color: #6c71c4;
   }
 
-  body  div {
-      width: 30em;
-  }
-
   blockquote {
       background: #eee8d5;
-      border: thin solid black;
       margin-left: 0;
       margin-right: 0;
       padding-left: 2em;
       padding-right: 2em;
-
+      border: thin solid #93a1a1;
   }
+
+  div.example, div.lisp {
+      padding: .25em 1em;
+      margin-left: 0;
+  }
+
+  div.example {
+      background-color: #002b36;
+      color: #93a1a1;
+  }
+
+  div.lisp {
+      background-color: #eee8d5;
+      color: #586e75;
+      border: thin solid #93a1a1;
+  }
+
+  dl dt samp {
+      display: inline-block;
+      background-color: #fdf6e3; //#eee8d5;
+      color: #586e75;
+      border: thin solid #eee8d5;
+      padding: 0 .5ex;
+      border-radius: .5ex;
+}
+
 #+end_src

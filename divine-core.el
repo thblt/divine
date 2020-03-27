@@ -520,13 +520,12 @@ once, by calling `divine-argument'."
       ;; Fail, probably because there's a pending operator already.
       (  (divine-fail)))))
 
-(cl-defmacro divine-wrap-operator (command &key ((:motion motion) 'divine-whole-line))
+(cl-defmacro divine-wrap-operator (command &key)
   "Wrap the Emacs command COMMAND as a Divine operator.
 
 The resulting operotar is called divine-NAME."
   (let ((name (intern (format "divine-%s" command))))
     `(divine-defoperator ,name
-       ,motion
        ,(format "Divine operator wrapper around `%s', which see." command)
        (call-interactively ',command))))
 
@@ -639,19 +638,9 @@ Motion scope: %s"
 
 ;;; Key binding interface
 
-(defvar divine-compile-bindings-immediately nil
-  "Whether Divine should compile bindings now or later.
-
-If non-nil, `divine-define-key' will immediately call
-`divine-compile-binding', which may be expensive in terms of
-performance.")
-
-(defvar divine--bindings (make-hash-table :test 'equal)
-  "Internal storage for Divine bindings.")
-
 (defconst divine--binding-states '(region-active
                                    numeric-argument
-                                   repeated-binding
+                                   repeated-operator
                                    operator-pending
                                    t)
   "Valid states for divine conditional bindings, by order of evaluation.")
@@ -725,7 +714,10 @@ Bindings are compiled by `divine-compile-bindings', which see."
   (pcase pred
     ('region-active (region-active-p))
     ('numeric-argument (divine-numeric-argument-p))
-    ('repeated-binding (eq this-command last-command))
+    ('repeated-operator (and (divine-pending-operator-p)
+                             (eq this-command last-command)))
+    ;; @FIXME ^ This is broken. It will hold whenever a binding is
+    ;; repeated with a pending operator.
     ('operator-pending (divine-pending-operator-p))
     (_ t)))
 

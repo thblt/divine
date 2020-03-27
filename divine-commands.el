@@ -202,6 +202,12 @@ Use this if you want to move to the absolute end of buffer."
    (search-forward (char-to-string (divine-read-char)) nil nil count)
    (unless (eq positive after) (forward-char minus1))))
 
+(divine-defmotion divine-find-char-forward
+  "Before the COUNTh occurence of CHAR forward, after if SCOPE."
+  (divine--find-char-helper (divine-scope-flag)))
+
+(divine-reverse-command 'divine-find-char-forward)
+
 (divine-defmotion divine-find-char-forward-before
   "Prompt for a character, then move point forward before the COUNTh occurence."
   (divine--find-char-helper nil))
@@ -318,6 +324,7 @@ is active, toggle rectangle mode"
 ;;; @FIXME Unsorted
 
 (divine-wrap-operator indent-region)
+(divine-wrap-operator sort-lines)
 
 ;;; Macros
 

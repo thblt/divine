@@ -81,10 +81,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (with-current-buffer (or buffer (current-buffer))
     (if-let ((func (cl-some 'divine--start-eval-rule divine-initial-mode-rules)))
         (funcall (car func))
-      (error "Traversal of `divine-initial-mode-rules' ended without an initial mode.")
-      )))
-
-(funcall-interactively 'toggle-debug-on-error)
+      (error "Traversal of `divine-initial-mode-rules' ended without an initial mode."))))
 
 (defun divine-abort ()
   "Abort what needs to be aborted."
@@ -122,7 +119,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 ;;;; Default keymap
 
 (divine-define-key 'normal "o" 'divine-open-line)
-(divine-define-key 'normal "o" 'exchange-point-and-mark :state 'region-active)
+;; (divine-define-key 'normal "o" 'exchange-point-and-mark :state 'region-active)
 
 (divine-init-normal-keymap 'normal)
 ;; Eat characters.
@@ -137,9 +134,9 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 ;; Lines
 (divine-define-key 'normal "<down>" 'next-line)
 (divine-define-key 'normal "<up>" 'previous-line)
-(divine-define-key 'normal "A" 'divine-line-beginning)
+(divine-define-key 'normal "^" 'divine-line-beginning)
                                         ;(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
-(divine-define-key 'normal "E" 'end-of-line)
+(divine-define-key 'normal "$" 'end-of-line)
 (divine-define-key 'normal "n" 'next-line)
 (divine-define-key 'normal "p" 'previous-line)
 ;; Paragraph motion
@@ -150,30 +147,31 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-define-key 'normal "g" 'divine-transient-g-mode)
 (divine-define-key 'normal "G" 'divine-end-of-buffer)
 ;; Other basic motion
-(divine-define-key 'normal "C-a" 'backward-sentence)
-(divine-define-key 'normal "C-e" 'forward-sentence)
+(divine-define-key 'normal "a" 'backward-sentence)
+(divine-define-key 'normal "e" 'forward-sentence)
 ;; Search
 (divine-define-key 'normal "t" 'divine-find-char-forward-before)
 (divine-define-key 'normal "T" 'divine-find-char-backward-before)
-(divine-define-key 'normal "l" 'divine-find-char-forward-after)
-(divine-define-key 'normal "L" 'divine-find-char-backward-after)
+(divine-define-key 'normal "r" 'divine-find-char-forward-after)
+(divine-define-key 'normal "R" 'divine-find-char-backward-after)
 (divine-define-key 'normal "s" 'isearch-forward)
-(divine-define-key 'normal "S" 'isearch-forward-regexp)
-(divine-define-key 'normal "r" 'isearch-backward)
-(divine-define-key 'normal "R" 'isearch-backward-regexp)
+;; (divine-define-key 'normal "S" 'isearch-forward-regexp)
+(divine-define-key 'normal "S" 'isearch-backward)
+; (divine-define-key 'normal "R" 'isearch-backward-regexp)
 ;; Insertion
 (divine-define-key 'normal "RET" 'divine-line-open-forward)
 (divine-define-key 'normal "M-RET" 'divine-line-open-backward)
 (divine-define-key 'normal "c" 'divine-change)
-(divine-define-key 'normal "c" 'divine-line-contents :state 'repeated-binding)
+(divine-define-key 'normal "c" 'divine-line-contents :state 'repeated-operator)
 (divine-define-key 'normal "c" 'divine-change)
-(divine-define-key 'normal "i" 'divine-insert-or-inside)
+(divine-define-key 'normal "i" 'divine-insert-mode)
+(divine-define-key 'normal "i" 'divine-insert-mode) ; @FIXME Handle inside.
 ;; Killing and yanking text
 (divine-define-key 'normal "d" 'divine-kill)
-(divine-define-key 'normal "d" 'divine-whole-line :state 'repeated-binding)
+(divine-define-key 'normal "d" 'divine-whole-line :state 'repeated-operator)
 (divine-define-key 'normal "x" 'delete-char)
 (divine-define-key 'normal "w" 'divine-text-save)
-(divine-define-key 'normal "w" 'divine-whole-line :state 'repeated-binding)
+(divine-define-key 'normal "w" 'divine-whole-line :state 'repeated-operator)
 (divine-define-key 'normal "y" 'divine-yank)
 (divine-define-key 'normal "r" 'divine-char-replace)
 ;; Complex manipulations
@@ -199,7 +197,8 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-define-key 'normal "M-i" 'counsel-imenu)
 ;; Leader-ish bindings
 (divine-define-key 'normal "SPC s" 'save-buffer)
-(divine-define-key 'normal "SPC f" 'ffap)
+(divine-define-key 'normal "SPC o" 'divine-sort-lines)
+(divine-define-key 'normal "SPC s" 'save-buffer)
 (divine-define-key 'normal "SPC p p" 'projectile-switch-project)
 (divine-define-key 'normal "SPC p f" 'projectile-find-file)
 
