@@ -51,14 +51,90 @@
 (defvar divine--macro-register nil
   "Register to save the current macro to.")
 
-;;; Utilities
 
-(defconst divine--blank-line-regexp (rx bol (* space) eol))
+;;; Helper commands
 
-(defalias 'divine-commands-switch-to-insert-mode 'divine-insert-mode
-  "To use divine-commands.el as a library in a divine interface
-that doesn't provide `divine-insert-mode', override this
-alias to use your function instead.")
+;;;; Scope support
+
+(defmacro divine-defscope (name)
+  "Define the Divine scope modifier NAME.
+
+This macro generates three functions: `divine-scope-NAME-select'
+to activate the scope if no other scope is already selected,
+`divine-scope-NAME-force' to activate it, optionally replacing an
+existing scope, and `divine-scope-NAME-flag', to read and consume
+the scope."
+  (let ((enter-fn (intern (format "divine-scope-%s-select" name)))
+        (force-fn (intern (format "divine-scope-%s-force" name)))
+        (pred-fn (intern (format "divine-scope-%s-flag" name))))
+    `(progn
+       (defun ,enter-fn ()
+         ,(format "Select '%s as the scope for the next text object.
+
+This won't have any effect is another scope is already selected." name)
+         (interactive)
+         (unless divine--object-scope
+           (setq divine--object-scope ',name)))
+       (defun ,force-fn ()
+         ,(format "Replace currently selected scope with '%s." name)
+         (interactive)
+         (setq divine--object-scope ',name))
+       (defun ,pred-fn (&optional noconsume)
+         ,(format "Return non-nil if Divine scope %s is selected, then consume it.
+
+This won't consume any other scope.
+
+If NOCONSUME it non-nil, don't consume the scope." name)
+         (when (eq divine--object-scope ',name)
+           (unless noconsume
+             (setq divine--object-scope nil))
+           t)))))
+
+(defvar-local divine--object-scope nil
+  "A text motion transformation tag.  In the standard Divine
+  interface, this accepts 'around or 'inside, like Vim's `a' and
+  `i'.")
+
+(defun divine-scope-p ()
+  "Return non-nil if a scope has been selected.  Don't consume the scope.
+
+Don't use this function to consume the scope, even if you have
+  only one."
+  divine--object-scope)
+
+(defun divine-scope-flag ()
+  "Like `divine-scope-p', but consume the scope."
+  (prog1
+      divine--object-scope
+    (setq divine--object-scope nil)))
+
+;;;; Register argument support
+
+(defvar-local divine--register nil
+  "The register chosen by the `divine-register-prefix' function.")
+
+(defun divine-select-register (reg)
+  "Select REG as the default register for the next operation.
+
+Interactively, prompt the user using `divine-read-char'."
+  (interactive (list (divine-read-char "Register?")))
+  (setq divine--register reg))
+
+(defun divine-register (&optional noconsume)
+  "Return the selected register and consume it.
+
+If NOCONSUME is non-nil, don't consume the value."
+  (prog1
+      divine--register
+    (unless noconsume (setq divine--register nil))))
+
+(defun divine-register-p ()
+  "Non-nil if there's a register selected."
+  divine--register)
+
+;;; Base features
+
+;;;; Killing and yanking
 
 (defun divine--text-to-register-helper (&optional delete)
   "A generic helper to move text regions to REGISTER, or to kill-ring.
@@ -71,19 +147,8 @@ If DELETE, region is deleted from buffer."
   (when delete
     (delete-region (region-beginning) (region-end))))
 
-(defun divine-read-pair (&optional prompt)
-  "Like `divine-read-char', but translates the result with
-  `divine-pair-aliases'."
-  (interactive)
-  (let ((char (divine-read-char prompt)))
-    (alist-get char divine-pair-aliases char)))
-
-;;; Operators
-
-;;;; Killing
-
 (divine-defoperator divine-kill
-  "Kill REGION into REGISTER."
+  "Kill REGION into REGISTER or kill-ring."
   (divine--text-to-register-helper t))
 
 (divine-defoperator divine-change
@@ -108,12 +173,52 @@ If DELETE, region is deleted from buffer."
          (insert char)
          (when negative (backward-char)))))))
 
+(divine-defaction divine-yank
+  "Yank the COUNTh entry from KILL-RING, or the contents of
+  REGISTER.
+
+If text to yank ends with \n, go to the beginning of next line
+before yanking.  If COUNT is negative, go to the beginning of
+previous line instead.
+
+If pasting from the kill-ring, this function pretends to be
+`yank' by setting `this-command', so `yank-pop' is happy."
+  (divine-with-numeric-argument-and-register
+   (when (string-suffix-p "\n"
+                          (if register
+                              (register-get register)
+                            (current-kill times t)))
+     (when positive (forward-line))
+     (beginning-of-line))
+   (if (divine-register-p)
+       (insert-register (divine-register))
+     (setq this-command 'yank)
+     (yank (divine-numeric-argument)))))
+
+;;; Actions
+
+(divine-defaction divine-append
+  "Move COUNT characters forward, then switch to insert mode."
+  (forward-char (divine-numeric-argument))
+  (divine-commands-switch-to-insert-mode))
+
+(divine-defaction divine-append-line
+  "Move to end of line, then switch to insert mode."
+  (end-of-line)
+  (divine-commands-switch-to-insert-mode))
+
 ;;; Motions
 
 ;;;; Scopes
 
 (divine-defscope around)
 (divine-defscope inside)
+
+(divine-defcommand divine-scope-step
+  "If not SCOPE, select inside scope.  Otherwise, select around."
+  (if (divine-scope-p)
+      (divine-scope-around-force)
+    (divine-scope-around-select)))
 
 (defmacro divine-with-numeric-argument-and-scope (&rest body)
   `(divine-with-numeric-argument
@@ -137,6 +242,18 @@ If DELETE, region is deleted from buffer."
 (divine-reverse-command 'divine-char-left)
 
 ;;;; Line motion
+
+(divine-defmotion divine-line-forward
+  "Move forward COUNT line(s).
+
+If COUNT is provided, move through non-visible lines as well."
+
+  ;; (divine-with-numeric-argument
+  ;;  (if naflag
+  ;;      (forward-line count))
+  (next-line (divine-numeric-argument)))
+
+(divine-reverse-command 'divine-line-forward)
 
 (divine-defmotion divine-line-beginning
   "Go to the first non-space character of current line."
@@ -167,19 +284,6 @@ at the last, including the final \n."
   (push-mark (point))
   (end-of-line (divine-numeric-argument)))
 
-;;;; Word motion
-
-(divine-defmotion divine-word-forward
-  "Move COUNT word(s) forward."
-  (divine-with-numeric-argument
-   (forward-word count)
-   ;; With a scope.
-   (when (divine-scope-flag)
-     (push-mark (point) t t)
-     (backward-word count))))
-
-(divine-reverse-command 'divine-word-forward)
-
 ;;;; Buffer motion
 
 (divine-defmotion divine-beginning-of-buffer
@@ -193,6 +297,19 @@ Use this if you want to move to the absolute beginning of buffer."
 
 Use this if you want to move to the absolute end of buffer."
   (goto-char (point-max)))
+
+;;;; Word motion
+
+(divine-defmotion divine-word-forward
+  "Move COUNT word(s) forward."
+  (divine-with-numeric-argument
+   (forward-word count)
+   ;; With a scope.
+   (when (divine-scope-flag)
+     (push-mark (point) t t)
+     (backward-word count))))
+
+(divine-reverse-command 'divine-word-forward)
 
 ;;;; Search
 
@@ -275,14 +392,6 @@ Use this if you want to move to the absolute end of buffer."
   "Save text to REGISTER or kill-ring."
   (divine--text-to-register-helper))
 
-(divine-defaction divine-yank
-  "Yank text from register or kill-ring.
-If no register is specified, yank COUNTieth elements from
-kill-ring."
-  (if (divine-register-p)
-      (insert-register (divine-register))
-    (yank (divine-numeric-argument))))
-
 (divine-defaction divine-point-save
   "Save point to REGISTER or mark stack."
   (divine--text-to-register-helper))
@@ -321,10 +430,6 @@ is active, toggle rectangle mode"
     (divine-mark-activate)
     (divine-mark-rectangle-activate)))
 
-;;; @FIXME Unsorted
-
-(divine-wrap-operator indent-region)
-(divine-wrap-operator sort-lines)
 
 ;;; Macros
 
@@ -364,6 +469,22 @@ is active, toggle rectangle mode"
   (if (divine-numeric-argument-p)
       (divine-goto-line)
     (divine-transient-g-mode)))
+
+;;; Misc utilities
+
+(defconst divine--blank-line-regexp (rx bol (* space) eol))
+
+(defalias 'divine-commands-switch-to-insert-mode 'divine-insert-mode
+  "To use divine-commands.el as a library in a divine interface
+that doesn't provide `divine-insert-mode', override this
+alias to use your function instead.")
+
+(defun divine-read-pair (&optional prompt)
+  "Like `divine-read-char', but translates the result with
+  `divine-pair-aliases'."
+  (interactive)
+  (let ((char (divine-read-char prompt)))
+    (alist-get char divine-pair-aliases char)))
 
 ;;; Conclusion
 

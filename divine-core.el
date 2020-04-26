@@ -24,16 +24,23 @@
 
 ;;; Commentary:
 
-;; This module provides the core Divine framework.
+;; This module provides the core Divine framework, over which Divine
+;; is built.
+
+;; This core can also be reused as the foundation for your own modal
+;; interface.  To get started, (info "(divine)The Divine framework")
+;; is a recommended reading.
 
 ;;; Code:
-
 (require 'cl-lib)
 
 ;;; Constants
 
-(defconst divine-version "0.0"
-  "Divine version number.")
+(defconst divine-version (list 0 0)
+  "The Divine version number.
+
+This is a list of the form (major minor patch pre-release).  To
+  get the version as a string, call `divine-version'.")
 
 (defconst divine-custom-cursor-type
   '(choice
@@ -44,10 +51,12 @@
     (cons :tag "Vertical bar with specified width" (const bar) integer)
     (const :tag "Horizontal bar" hbar)
     (const :tag "Horizontal bar with specified width" (const hbar) integer)
-    (const :tag "None " nil))) ; To update, C-u eval (custom-variable-type 'cursor-type)
+    (const :tag "None " nil)) ; To update, C-u eval (custom-variable-type 'cursor-type)
+  "A customize :type for `cursor-type'.")
 
 (defconst divine-custom-cursor-color-type '(choice (const :tag "Default" nil)
-                                                   (color :tag "Color")))
+                                                   (color :tag "Color"))
+  "A customize :type for `set-cursor-color'.")
 
 ;;; Customizations
 
@@ -71,43 +80,57 @@ If nil, use the foreground color of the default face."
 
 ;;; Variables
 
-(defvar-local divine--lighter nil
-  "The current mode lighter.")
+;;;; Global
 
-(defvar divine--mode-functions nil
+(defvar divine-modes nil
   "List of known divine modes")
 
-(defvar divine--modes-symbols-alist nil
-  "A list of pairs associating short mode names to their
-  corresponding emacs symbol.")
-
-(defvar-local divine--active-mode nil
-  "The currently active Divine mode.")
-
-(defvar divine--next-mode nil
-  "If non nil, `divine-finalize will activate this mode after the
-  next command has completed.'")
-
-(defvar-local divine--ready-for-operator nil
-  "Whether Divine region is ready, that is, the operator can act
-  over it.")
-
-(defvar-local divine--pending-operator nil
-  "The operator waiting for a motion.")
-
-(defvar-local divine--transient-stack nil
-  "Stack of modes to restore after a transient operation.")
+(defvar divine-mode-aliases nil
+  "An alist associating mode aliases (like 'normal) to their
+  corresponding emacs symbol (like `divine-normal-mode').")
 
 (defvar divine-pending-operator-hook nil
   "Hook run when Divine enters or leaves pending operator state.")
 
+;;;; Buffer runtime state
+
+(defvar-local divine--transient-stack nil
+  "Stack of modes to restore after a transient operation.")
+
+(defvar-local divine--active-mode nil
+  "The currently active Divine mode.")
+
+(defvar-local divine--ready-for-operator nil
+  "Whether Divine region is ready, that is, the operator can act
+  over it.  This is set by all motions and text objects, and can
+  be non-nil even if the region has no length.")
+
+(defvar-local divine--pending-operator nil
+  "The operator waiting for a motion.")
+
+(defvar-local divine--transient-cursor-color-stack nil
+  "Stack of cursor styles to restore in
+`divine-post-command-restore-cursor'.")
+
+(defvar-local divine--continue nil
+  "Whether the Divine state must be preserved at the end of the
+command loop.  This variable should be set by `divine-continue',
+which see.
+
+When inspected interactively, this variable is always nil.")
+
+;;;;; Cosmetics
+
+(defvar-local divine--lighter nil
+  "The minor mode lighter.")
+
 ;;; Core infrastructure
 
-;;;; Control modes
+;;;; Control mode
 
 (define-minor-mode divine-mode
   "Divine, a modal interface with text objects, or something
-  close enough."
+close enough."
   :lighter (:eval divine--lighter)
   :group 'convenience
   (if divine-mode
@@ -125,25 +148,28 @@ If nil, use the foreground color of the default face."
 
 (define-globalized-minor-mode divine-global-mode divine-mode divine-mode)
 
-;;;; Command hooks
-
-(defvar-local divine--point nil
-  "Previous value of point")
+;;;; Command loop
 
 (defun divine-pre-command-hook ()
-  (setq divine--point (point)))
+  "Do nothing.")
 
 (defun divine-post-command-hook ()
-  (unless (eq divine--point (point))
+  "Finalize pending operators."
+  ;; Finalize pending operator, if any.
+  (when (and (divine-pending-operator-p)
+             (not (eq (mark) (point))))
     (divine-motion-done)))
 
-;;;; Finalizers
+;;;; Buffer state manipulation
+
+(defun divine-continue ()
+  "Make unconsumed Divine state variables persist after the
+current command."
+  (setq divine--continue t))
 
 (defun divine--finalize ()
   "Restore base state."
-  (setq divine--object-scope nil
-        divine--ready-for-operator nil
-        divine--register nil
+  (setq divine--ready-for-operator nil
         prefix-arg nil)
   (divine-abort-pending-operator)
   (divine-quit-transient-modes))
@@ -237,17 +263,23 @@ non-null integer."
 
 ;;;;; Utility macros
 
-
 (defmacro divine-with-numeric-argument (&rest body)
   "Evaluate BODY in an environment where:
 
- - COUNT is bound to the value of the numeric argument
- - TIMES is bound to the absolute value of the numeric argument
- - POSITIVE is non-nil if COUNT is positive or null
- - NEGATIVE is (not positive)
- - PLUS1 is 1 if POSITIVE, -1 otherwise.
- - MINUS1 is minus PLUS1."
-  `(let* ((count (divine-numeric-argument))
+- NAFLAG is non-nil if the argument was provided by the user.
+- COUNT is the value of the numeric argument
+- TIMES is the absolute value of the numeric argument
+- POSITIVE is non-nil if COUNT is positive or null
+- NEGATIVE is (not positive)
+- PLUS1 is 1 if POSITIVE, -1 otherwise.
+- MINUS1 is minus PLUS1.
+
+This is useful for writing motions and objects. In most of the
+cases, you can assume a forward direction provided you use PLUS1
+and MINUS1 instead of literal quantities, and your function will
+adapt to negative arguments."
+  `(let* ((naflag (divine-numeric-argument-p))
+          (count (divine-numeric-argument))
           (times (abs count))
           (positive (>= count 0))
           (negative (not positive))
@@ -255,16 +287,30 @@ non-null integer."
           (minus1 (- plus1)))
      ,@body))
 
-(defmacro divine-dotimes (&rest body)
-  "Execute BODY COUNT times, in the same environment as
-  `divine-with-numeric-argument'."
+(defmacro divine-with-register (&rest body)
+  "Evaluate BODY in an environment where REGISTER is bound to the
+selected REGISTER, and consume it."
+
+  `(let* ((register (divine-register)))
+     ,@body))
+
+(defmacro divine-with-numeric-argument-and-register (&rest body)
+  "Wrap BODY in `divine-with-numeric-argument' and
+`divine-with-register', which see."
   `(divine-with-numeric-argument
-    (dotimes (_ times)
-      ,@body)))
+    (divine-with-register
+     ,@body)))
+
+  (defmacro divine-dotimes (&rest body)
+    "Execute BODY COUNT times, in the same environment as
+`divine-with-numeric-argument'."
+    `(divine-with-numeric-argument
+      (dotimes (_ times)
+        ,@body)))
 
 (defmacro divine-reverse-command (command &optional name)
   "Create a command called NAME that runs COMMAND with the
-  numeric argument reversed.
+numeric argument reversed.
 
 COMMAND must be quoted.
 
@@ -305,50 +351,6 @@ and conversely, and return the modified symbol."
       (divine--word-replace-both-ways (car pair) (cdr pair)))
     (buffer-string)))
 
-;;;; Register argument support
-
-(defvar-local divine--register nil
-  "The register chosen by the `divine-register-prefix' function.")
-
-(defun divine-select-register (reg)
-  "Select REG as the default register for the next operation.
-
-Interactively, prompt the user using `divine-read-char'."
-  (interactive (list (divine-read-char "Register?")))
-  (setq divine--register reg))
-
-(defun divine-register (&optional noconsume)
-  "Return the selected register and consume it.
-
-If NOCONSUME is non-nil, don't consume the value."
-  (prog1
-      divine--register
-    (unless noconsume (setq divine--register nil))))
-
-(defun divine-register-p ()
-  "Non-nil if there's a register selected."
-  divine--register)
-
-;;;; Scope support
-
-(defvar-local divine--object-scope nil
-  "A text motion transformation tag.  In the standard Divine
-  interface, this accepts 'around or 'inside, like Vim's `a' and
-  `i'.")
-
-(defun divine-scope-p ()
-  "Return non-nil if a scope has been selected.  Don't consume the scope.
-
-Don't use this function to consume the scope, even if you have
-  only one."
-  divine--object-scope)
-
-(defun divine-scope-flag ()
-  "Like `divine-scope-p', but consume the scope."
-  (prog1
-      divine--object-scope
-    (setq divine--object-scope nil)))
-
 ;;;; Messages
 
 (defun divine-flash (msg)
@@ -358,8 +360,8 @@ Don't use this function to consume the scope, even if you have
 ;;;; Internal
 
 (defun divine--disable-modes (&optional except)
-  "Disable all modes in `divine--mode-functions' except EXCEPT."
-  (dolist (mode divine--mode-functions)
+  "Disable all modes in `divine-modes' except EXCEPT."
+  (dolist (mode divine-modes)
     (unless (eq mode except)
       (funcall mode 0)))
   (setq-local divine--active-mode except))
@@ -368,24 +370,24 @@ Don't use this function to consume the scope, even if you have
 
 ;;;; Predicates
 
+(defun divine-accept-action-p ()
+  "Return non-nil in an action command can be entered."
+  (not (or (region-active-p)
+           (divine-pending-operator-p))))
+
 (defun divine-accept-motion-p ()
   "Return non-nil in a motion command can be entered."
   t)
 
 (defun divine-accept-object-p ()
   "Return non-nil in a text object command can be entered.  This
-  is more narrow that `divine-accept-motion-p'"
+is more narrow that `divine-accept-motion-p'"
   (or (region-active-p)
       (divine-pending-operator-p)))
 
 (defun divine-accept-operator-p ()
   "Return non-nil in an operator can be entered."
   (not (divine-pending-operator-p)))
-
-(defun divine-accept-scope-p ()
-  "Return non-nil in an object scope can be entered."
-  (and (not (divine-scope-p))
-       (divine-accept-object-p)))
 
 (defun divine-pending-operator-p ()
   "Return non-nil in Divine is waiting for a text motion to run on operator."
@@ -398,7 +400,7 @@ Don't use this function to consume the scope, even if you have
            (not (eq (region-beginning)
                     (region-end))))))
 
-;;; High-level user interface
+;;; High-level programming interface
 ;;;; Mode definition interface
 
 (cl-defmacro divine-defmode (name docstring &key cursor cursor-color lighter mode-name transient-fn rname)
@@ -408,14 +410,14 @@ NAME is a short identifier, like normal or insert.
 
 The following optional keyword arguments are accepted.
 
- - `:cursor' The cursor style for this mode, as a valid argument
-   for `set-cursor', which see.
- - `:cursor-color' The cursor color for this mode, as an hex
-   string or en Emacs color name.
- - `:lighter' The mode lighter.
- - `:mode-name' The actual Emacs mode name. This defaults to divine-NAME-mode.
- - `:rname' A readable name for the mode, as a string.
- - `:transient-fn' The name of the function used to temporarily activate the mode."
+- `:cursor' The cursor style for this mode, as a valid argument
+for `set-cursor', which see.
+- `:cursor-color' The cursor color for this mode, as an hex
+string or en Emacs color name.
+- `:lighter' The mode lighter.
+- `:mode-name' The actual Emacs mode name. This defaults to divine-NAME-mode.
+- `:rname' A readable name for the mode, as a string.
+- `:transient-fn' The name of the function used to temporarily activate the mode."
   (declare (indent defun))
   ;; Guess :rname
   (unless rname
@@ -449,8 +451,8 @@ The following optional keyword arguments are accepted.
        ;; Variables
        (defvar ,map-variable (make-keymap)
          ,(format "Keymap for Divine %s mode." rname))
-       (add-to-list 'divine--mode-functions ',mode-name)
-       (push '(,name . ,mode-name) divine--modes-symbols-alist)
+       (add-to-list 'divine-modes ',mode-name)
+       (push '(,name . ,mode-name) divine-mode-aliases)
        ;; Transient activation function
        (defun ,transient-fn ()
          ,(format "Transient activation function for Divine %s mode." rname)
@@ -545,41 +547,13 @@ nor objects must activate or deactivate the region."
      ;; an empty line) but should run the pending operator regardless.
      (divine-motion-done)))
 
-;;;; Scope definition interface
+;;;; Cursor handling
 
-(defmacro divine-defscope (name)
-  "Define the Divine scope modifier NAME.
+(defun divine--set-cursor (&optional style color)
+  "Set cursor to STYLE and COLOR, if set, and install a hook to
+restore them after current command returns."
 
-This macro generates three functions: `divine-scope-NAME-select'
-to activate the scope if no other scope is already selected,
-`divine-scope-NAME-force' to activate it, optionally replacing an
-existing scope, and `divine-scope-NAME-flag', to read and consume
-the scope."
-  (let ((enter-fn (intern (format "divine-scope-%s-select" name)))
-        (force-fn (intern (format "divine-scope-%s-force" name)))
-        (pred-fn (intern (format "divine-scope-%s-flag" name))))
-    `(progn
-       (defun ,enter-fn ()
-         ,(format "Select '%s as the scope for the next text object.
-
-This won't have any effect is another scope is already selected." name)
-         (interactive)
-         (unless divine--object-scope
-           (setq divine--object-scope ',name)))
-       (defun ,force-fn ()
-         ,(format "Replace currently selected scope with '%s." name)
-         (interactive)
-         (setq divine--object-scope ',name))
-       (defun ,pred-fn (&optional noconsume)
-         ,(format "Return non-nil if Divine scope %s is selected, then consume it.
-
-This won't consume any other scope.
-
-If NOCONSUME it non-nil, don't consume the scope." name)
-         (when (eq divine--object-scope ',name)
-           (unless noconsume
-             (setq divine--object-scope nil))
-           t)))))
+  ) ; @FIXME
 
 ;;; Misc utilities
 
@@ -596,6 +570,24 @@ If NOCONSUME it non-nil, don't consume the scope." name)
 (defcustom divine-flash-function 'divine-flash
   "The function used to display mode changes."
   :type 'function)
+
+;;; Debug and information
+
+(defun divine-version (&optional show)
+  "Divine version number."
+  (interactive (list t))
+  (let* ((major (car divine-version))
+         (minor (cadr divine-version))
+         (patch (caddr divine-version))
+         (pre (cadddr divine-version))
+         (version (seq-concatenate
+                   'string
+                   (format "%s.%s" major minor)
+                   (if patch (format ".%s" patch) "")
+                   (if pre (format "-%s" pre) ""))))
+    (when show
+      (message "Divine %s (%s)" version (symbol-file 'divine-version)))
+    version))
 
 (defun divine-describe-state (arg)
   "Print a message describing the Divine state for the active buffer.
@@ -620,8 +612,8 @@ Motion scope: %s"
           divine-version
           divine-mode
           divine--active-mode
-          (seq-filter (lambda (x) (symbol-value x)) divine--mode-functions)
-          divine--mode-functions
+          (seq-filter (lambda (x) (symbol-value x)) divine-modes)
+          divine-modes
           divine--transient-stack
           divine--pending-operator
           divine--ready-for-operator
@@ -638,29 +630,37 @@ Motion scope: %s"
 
 ;;; Key binding interface
 
-(defconst divine--binding-states '(region-active
+(defconst divine--binding-states '(base ; Initial normal state.
+                                   region-active ; There's a region active (so no operator pending)
                                    numeric-argument
                                    repeated-operator
                                    operator-pending
                                    t)
   "Valid states for divine conditional bindings, by order of evaluation.")
 
+(defconst divine-binding-types '((action . divine-accept-action-p)
+                                 (operator . divine-accept-operator-p)
+                                 (default-motion . divine-accept-default-motion-p) ;; @FIXME Implement
+                                 (object . divine-accept-object-p)
+                                 (motion . divine-accept-motion-p)
+                                 (t . (lambda nil t))
+                                 "Key binding types, by order of evaluation.")) ; @FIXME Remove if unused.
+
 (defun divine--make-binding-function-name (mode key)
   "Make a unique symbol from MODE and KEY."
   (intern (format "divine--%s-in-%s-mode" (key-description key) mode)))
 
-(cl-defun divine-define-key (mode key command &key ((:mode emacs-mode) 't) ((:state state) 't))
+(cl-defun divine-define-key (mode key command &key ((:mode emacs-mode) 't) ((:state state) 't) ((:when pred) 't))
   "Bind KEY to COMMAND in Divine mode MODE.
 
- - MODE is the short name of a Divine mode, like 'normal or 'insert.
+MODE is the short name of a Divine mode, like 'normal or 'insert.
 
- - STATE is a predicate that depends of the current
-   interactive state of Divine.  It usually corresponds to the
-   type of the command.
+STATE is a predicate that depends of the current
+interactive state of Divine.  It usually corresponds to the
+type of the command.
 
-
- - EMACS-MODE is a symbol identifying an Emacs major or minor
-   mode.
+EMACS-MODE is a symbol identifying an Emacs major or minor
+mode.
 
 Bindings are compiled by `divine-compile-bindings', which see."
   ;; Sanity checks
@@ -696,12 +696,12 @@ Bindings are compiled by `divine-compile-bindings', which see."
 
       ;; Create function
       (fset name (lambda () (interactive)
-                   "@TODO Docstring generation not implemented."
+                   "@FIXME Docstring generation not implemented."
                    (divine--run-binding (symbol-value name))))
 
       ;; Create binding
       (define-key
-        (symbol-value (intern (format "%s-map" (alist-get mode divine--modes-symbols-alist))))
+        (symbol-value (intern (format "%s-map" (alist-get mode divine-mode-aliases))))
         key
         (if (and
              (eq 1 (length (symbol-value name)))
@@ -712,6 +712,7 @@ Bindings are compiled by `divine-compile-bindings', which see."
 
 (defun divine--eval-binding-predicate (pred)
   (pcase pred
+    ('base (not (or (divine-pending-operator-p) (region-active-p))))
     ('region-active (region-active-p))
     ('numeric-argument (divine-numeric-argument-p))
     ('repeated-operator (and (divine-pending-operator-p)

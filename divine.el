@@ -47,7 +47,8 @@
     (mu4e-view-mode divine-off-mode)
     (mu4e-headers-mode divine-off-mode)
     (string= (buffer-name) "*mu4e-headers" divine-off-mode)
-    ;; buffers don't start in mu4e-headers-mode, so we also need this rule
+    ;; mu4e headers buffers don't start in mu4e-headers-mode, so we
+    ;; also need the above rule
     (mu4e-main-mode divine-off-mode)
     ((and (not buffer-read-only)
           (eq (point-min) (point-max)))
@@ -119,7 +120,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 ;;;; Default keymap
 
 (divine-define-key 'normal "o" 'divine-open-line)
-;; (divine-define-key 'normal "o" 'exchange-point-and-mark :state 'region-active)
+(divine-define-key 'normal "o" 'exchange-point-and-mark :state 'region-active)
 
 (divine-init-normal-keymap 'normal)
 ;; Eat characters.
@@ -132,13 +133,13 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-define-key 'normal "f" 'divine-word-forward)
 ;; (define-key divine-normal-mode-map (kbd "<spc>") 'activate-mark)
 ;; Lines
-(divine-define-key 'normal "<down>" 'next-line)
-(divine-define-key 'normal "<up>" 'previous-line)
 (divine-define-key 'normal "^" 'divine-line-beginning)
-                                        ;(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
+;;(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
 (divine-define-key 'normal "$" 'end-of-line)
-(divine-define-key 'normal "n" 'next-line)
-(divine-define-key 'normal "p" 'previous-line)
+(divine-define-key 'normal "p" 'divine-line-backward)
+(divine-define-key 'normal "<up>" 'divine-line-backward)
+(divine-define-key 'normal "<down>" 'divine-line-forward)
+(divine-define-key 'normal "n" 'divine-line-forward)
 ;; Paragraph motion
 (divine-define-key 'normal "P" 'backward-paragraph)
 (divine-define-key 'normal "N" 'forward-paragraph)
@@ -163,13 +164,12 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-define-key 'normal "M-RET" 'divine-line-open-backward)
 (divine-define-key 'normal "c" 'divine-change)
 (divine-define-key 'normal "c" 'divine-line-contents :state 'repeated-operator)
-(divine-define-key 'normal "c" 'divine-change)
-(divine-define-key 'normal "i" 'divine-insert-mode)
-(divine-define-key 'normal "i" 'divine-insert-mode) ; @FIXME Handle inside.
+(divine-define-key 'normal "i" 'divine-insert-mode :state 'base)
+(divine-define-key 'normal "i" 'divine-scope-step)
 ;; Killing and yanking text
-(divine-define-key 'normal "d" 'divine-kill)
-(divine-define-key 'normal "d" 'divine-whole-line :state 'repeated-operator)
-(divine-define-key 'normal "x" 'delete-char)
+(divine-define-key 'normal "k" 'divine-kill)
+(divine-define-key 'normal "k" 'divine-whole-line :state 'repeated-operator)
+(divine-define-key 'normal "d" 'delete-char)
 (divine-define-key 'normal "w" 'divine-text-save)
 (divine-define-key 'normal "w" 'divine-whole-line :state 'repeated-operator)
 (divine-define-key 'normal "y" 'divine-yank)

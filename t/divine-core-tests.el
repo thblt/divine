@@ -8,7 +8,7 @@ it's equal to divine-version."
     (with-temp-buffer
       (insert-file-contents file)
       (if (search-forward-regexp "^;; Version: \\(.*\\)$" nil t)
-          (should (string= divine-version (match-string 1)))))))
+          (should (string= (divine-version) (match-string 1)))))))
 
 (ert-deftest divine--numeric-argument-normalize ()
   (should (eq 12 (divine--numeric-argument-normalize 12)))
