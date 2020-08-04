@@ -1,4 +1,4 @@
-#+TITLE: Divine User Manuel
+#+TITLE: Divine User Manual
 :PREAMBLE:
 #+AUTHOR: Thibault Polge
 #+EMAIL: thibault@thb.lt

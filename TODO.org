@@ -1,3 +1,7 @@
+* TODO Fragile activation
+
+Instead of transient activation, create a fragile activation for prefixes that uses read-char on the target mode map only once.
+
 * TODO Create special modes and maps
 
  - For when the region is active.
