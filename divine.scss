@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto:ital,wght@0,400;0,500;1,400;1,500&display=swap');
 
-$width: 500px;
+$width: 800px;
 
 $main-font: "Open Sans";
 $fixed-font: "Roboto";
@@ -28,6 +28,7 @@ body {
     background: $base3;
     color: $base01;
     font-family: $main-font;
+    font-size: 140%;
 }
 
 a {
