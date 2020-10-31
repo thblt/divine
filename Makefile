@@ -12,19 +12,19 @@ ORG_ARGS += --funcall org-babel-tangle
 
 .PHONY: clean tests
 
-all: divine.info webdoc
+all: divine.info doc_html
 
 info : divine.info
 
-webdoc: webdoc/index.html webdoc/divine.html webdoc/manual.css
+doc_html: doc_html/index.html doc_html/divine.html doc_html/divine.css
 
-webdoc/index.html : divine.texi
-	makeinfo --html --output=webdoc --css-ref manual.css divine.texi
+doc_html/index.html : divine.texi
+	makeinfo --html --output=doc_html --css-ref divine.css divine.texi
 
-webdoc/divine.html : divine.texi
-	makeinfo --html --output=webdoc --no-split --css-ref manual.css divine.texi
+doc_html/divine.html : divine.texi
+	makeinfo --html --output=doc_html --no-split --css-ref divine.css divine.texi
 
-webdoc/manual.css : manual.scss
+doc_html/divine.css : divine.scss
 	$(SASS) $(SASS_ARGS) $< $@
 
 divine.texi: divine.org ox-texinfo+.el
@@ -38,6 +38,6 @@ ox-texinfo+.el :
 	curl https://raw.githubusercontent.com/tarsius/ox-texinfo-plus/master/ox-texinfo%2B.el > ox-texinfo+.el
 
 clean:
-	$(RM) divine.info webdoc ox-texinfo+.el
+	$(RM) divine.info doc_html ox-texinfo+.el
 
 %.texi : %.org ;
