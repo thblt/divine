@@ -1,0 +1,4 @@
+*.elc
+.sass-cache
+doc_html/**
+ox-texinfo+.el
