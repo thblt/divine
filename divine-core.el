@@ -32,7 +32,9 @@
 ;; is a recommended reading.
 
 ;;; Code:
-(require 'cl-lib)
+
+(eval-when-compile
+  (require 'cl-lib))
 
 ;;; Constants
 
@@ -48,9 +50,11 @@ This is a list of the form (major minor patch pre-release).  To
     (const :tag "Filled box" box)
     (const :tag "Hollow cursor" hollow)
     (const :tag "Vertical bar" bar)
-    (cons :tag "Vertical bar with specified width" (const bar) integer)
+    (cons :tag "Vertical bar with specified width"
+          (const bar) integer)
     (const :tag "Horizontal bar" hbar)
-    (const :tag "Horizontal bar with specified width" (const hbar) integer)
+    (const :tag "Horizontal bar with specified width"
+           (const hbar) integer)
     (const :tag "None " nil)) ; To update, C-u eval (custom-variable-type 'cursor-type)
   "A customize :type for `cursor-type'.")
 
@@ -83,14 +87,24 @@ If nil, use the foreground color of the default face."
 ;;;; Global
 
 (defvar divine-modes nil
-  "List of known divine modes")
+  "List of known divine modes.")
 
 (defvar divine-mode-aliases nil
-  "An alist associating mode aliases (like 'normal) to their
-  corresponding emacs symbol (like `divine-normal-mode').")
+  "An alist associating mode alias symbols to the corresponding mode.")
 
 (defvar divine-pending-operator-hook nil
   "Hook run when Divine enters or leaves pending operator state.")
+
+(defvar divine-clear-state-functions (list 'divine-clear-state)
+  "Functions to call for dropping buffer state.
+
+If you add state variables for your custom commands, create a
+function to clear them (return them to their initial value) and
+add it to this list.  Don't erase the initial value or you will
+break Divine.
+
+Functions in this list should accept, and ignore, any number of
+arguments.")
 
 ;;;; Buffer runtime state
 
@@ -102,8 +116,17 @@ If nil, use the foreground color of the default face."
 
 (defvar-local divine--ready-for-operator nil
   "Whether Divine region is ready, that is, the operator can act
-  over it.  This is set by all motions and text objects, and can
-  be non-nil even if the region has no length.")
+over it.  This is set by all motions and text objects, and can
+be non-nil even if the region has no length.
+
+The point of this variable is to make sure that even if a
+motion/object command produced an empty region, the operator will
+run over it (probably doing nothing) and the pending operator
+state will be terminated.")
+;; @TODO Make this behavior configurable. This can happen, for
+;; example, using the end-of-line motion when already at the end of
+;; the line.  What should happen in such case should be
+;; user-configurable.
 
 (defvar-local divine--pending-operator nil
   "The operator waiting for a motion.")
@@ -132,16 +155,16 @@ When inspected interactively, this variable is always nil.")
   "Divine, a modal interface with text objects, or something
 close enough."
   :lighter (:eval divine--lighter)
-  :group 'convenience
+  :group 'divine
   (if divine-mode
       ;; Enter
       (progn
-        (divine--finalize) ; Clear state variables, just in case.
-        (add-hook 'pre-command-hook 'divine-pre-command-hook)
+        (run-hooks 'divine-clear-state-functions)
+        ;; (add-hook 'pre-command-hook 'divine-pre-command-hook)
         (add-hook 'post-command-hook 'divine-post-command-hook)
         (if (fboundp 'divine-start)
             (divine-start)
-          (error "Function `divine-start' undefined.  See Divine manual.")))
+          (error "Function `divine-start' undefined.  See Divine manual")))
     ;; Leave
     (divine--disable-modes nil)
     (divine--finalize)))
@@ -150,29 +173,29 @@ close enough."
 
 ;;;; Command loop
 
-(defun divine-pre-command-hook ()
-  "Do nothing.")
-
 (defun divine-post-command-hook ()
   "Finalize pending operators."
-  ;; Finalize pending operator, if any.
+  ;; Run pending operator, if any.
   (when (and (divine-pending-operator-p)
              (not (eq (mark) (point))))
-    (divine-motion-done)))
+    (divine-motion-done))
+  ;; Drop or persist state
+  (if divine--continue
+      (setq prefix-arg current-prefix-arg)
+    (run-hooks 'divine-clear-state-functions)))
 
 ;;;; Buffer state manipulation
 
 (defun divine-continue ()
-  "Make unconsumed Divine state variables persist after the
-current command."
+  "Make unconsumed Divine state variables persist after the current command."
   (setq divine--continue t))
 
-(defun divine--finalize ()
+(defun divine-clear-state ()
   "Restore base state."
   (setq divine--ready-for-operator nil
-        prefix-arg nil)
-  (divine-abort-pending-operator)
-  (divine-quit-transient-modes))
+        divine--pending-operator nil
+        prefix-arg nil))
+
 
 (defun divine-abort-pending-operator ()
   ""
@@ -208,14 +231,15 @@ and can be bound to override binding."
 
 ;;;; Numeric argument support
 
-(defun divine-numeric-argument-p ()
+(defun divine-numeric-argument-p (&optional noconsume)
   "Return non-nil if the numeric argument is defined.
 
 This predicate is only to be used to determine the relevant
 function in an hybrid command.  To consume the numeric argument,
 even if you ignore the actual value, use
 `divine-numeric-argument' or `divine-numeric-argument-flag'."
-  current-prefix-arg)
+  current-prefix-arg
+  (unless noconsume (setq current-prefix-arg nil)))
 
 (defun divine-numeric-argument (&optional noconsume)
   "Return the current numeric argument or a reasonable default.
@@ -234,20 +258,6 @@ use `divine-numeric-argument-p' instead."
    (prog1
        current-prefix-arg
      (unless noconsume (setq current-prefix-arg nil)))))
-
-(defun divine-numeric-argument-flag (&optional noconsume)
-  "Like `divine-numeric-argument-p', but actually consume the argument.
-
-This is useful to use the argument as a flag and ignore its
-value.
-
-The numeric argument is consumed after it's been read, which
-means subsequent invocations will always return 1.  If NOCONSUME
-is non-nil, the argument isn't consumed.  This is probably not a
-good idea."
-  (prog1
-      current-prefix-arg
-    (unless noconsume (setq current-prefix-arg nil))))
 
 (defun divine--numeric-argument-normalize (arg)
   "Normalize ARG as an integer.
@@ -278,8 +288,8 @@ This is useful for writing motions and objects. In most of the
 cases, you can assume a forward direction provided you use PLUS1
 and MINUS1 instead of literal quantities, and your function will
 adapt to negative arguments."
-  `(let* ((naflag (divine-numeric-argument-p))
-          (count (divine-numeric-argument))
+  `(let* ((naflag (divine-numeric-argument-p 'noconsume))
+          (count (divine-numeric-argument 'noconsume))
           (times (abs count))
           (positive (>= count 0))
           (negative (not positive))
@@ -404,20 +414,20 @@ is more narrow that `divine-accept-motion-p'"
 ;;;; Mode definition interface
 
 (cl-defmacro divine-defmode (name docstring &key cursor cursor-color lighter mode-name transient-fn rname)
-  "Define the Divine mode ID, with documentation DOCSTRING.
+  "Define the Divine mode NAME, with documentation DOCSTRING.
 
 NAME is a short identifier, like normal or insert.
 
 The following optional keyword arguments are accepted.
 
-- `:cursor' The cursor style for this mode, as a valid argument
-for `set-cursor', which see.
-- `:cursor-color' The cursor color for this mode, as an hex
-string or en Emacs color name.
-- `:lighter' The mode lighter.
-- `:mode-name' The actual Emacs mode name. This defaults to divine-NAME-mode.
-- `:rname' A readable name for the mode, as a string.
-- `:transient-fn' The name of the function used to temporarily activate the mode."
+ - `:cursor' The cursor style for this mode, as a valid argument
+   for `set-cursor', which see.
+ - `:cursor-color' The cursor color for this mode, as an hex
+   string or en Emacs color name.
+ - `:lighter' The mode lighter.
+ - `:mode-name' The actual Emacs mode name.   This defaults to divine-NAME-mode.
+ - `:rname' A readable name for the mode, as a string.
+ - `:transient-fn' The name of the function used to temporarily activate the mode."
   (declare (indent defun))
   ;; Guess :rname
   (unless rname
@@ -501,9 +511,23 @@ It is legal whenever an operator is, but is never pending."
 (defmacro divine-defoperator (name docstring &rest body)
   "Define a Divine operator NAME with doc DOCSTRING.
 
-BODY is the code of the operator.  It's expected to work between
-point and mark.  It can read the current prefix argument, exactly
-once, by calling `divine-argument'."
+BODY is the code of the operator.  It should work on the region,
+whether it's active or not, by reading `(region-beginning)'
+and `(region-end)'.
+
+The region may be empty, if this is an issue for your command,
+wrap in `(unless (eq (point) (mark)) ...)'.
+
+Operators need not check anything about the runtime Divine state,
+although they can of course access the state variables they need
+to adjust their behavior.  To do so, please only use the divine-
+accessors, like `divine-numeric-argument', which will correctly
+consume the state variables.  Notice that if the operator runs
+after having been pending, it will read state after the motion
+that created the region, so part of the state may have already
+been consumed.
+
+BODY will only be executed if and when the operator runs."
   (declare (indent defun))
   `(divine-defcommand ,name ,docstring
      (cond
@@ -533,19 +557,119 @@ The resulting operotar is called divine-NAME."
 
 ;;;; Motion definition interface
 
-(defmacro divine-defmotion (name docstring &rest body)
-  "Define a Divine text motion NAME with doc DOCSTRING.
-BODY should move the point for a regular motion, or both the
-point and the mark, as needed for a text object.  Neither motions
-nor objects must activate or deactivate the region."
-  (declare (indent defun))
-  `(divine-defcommand ,name ,docstring
-     ,@body
-     ;; divine-motion-done may be called, again, in the
-     ;; post-command-hook. This is unavoidable: some Divine motions
-     ;; may not move the point (for example, divine-line-contents on
-     ;; an empty line) but should run the pending operator regardless.
-     (divine-motion-done)))
+
+;; This works more or less, but is a bit broken.  With a scope
+;; modifier, if we start *between* words with forward, it selects the
+;; word before.  To fix this:
+;;
+;; - Add a :predicate argument to determine if we're actually on a
+;;   THING, and decide what to do from here.  bounds-of-thing-at-point
+;;   works (it returns nil or a pair).
+
+(defmacro divine--defobject-make-function (name docstring forward backward beginning end extend-before extend-after)
+  "Generate a function body for divine-defobject."
+  `(defun ,name ()
+     (interactive)
+     (let ((point))
+       (divine-with-numeric-argument
+        (message "%s" times)
+        (if (not (divine-scope-p 'noconsume))
+            ;; Just a motion
+
+            (if positive
+                (,forward times)
+              (,backward times))
+          ;; There's a scope.
+          ;; We start by moving back to the beginning
+          (if positive (,beginning) (,end))
+          (setq point (point))
+          ;; Are we *around*? If so, we get there.
+          (when (divine-scope-around-p 'noconsume)
+            (if positive (,extend-before) (,extend-after)))
+          (push-mark)
+          (activate-mark)
+          ;; Restore
+          (goto-char point)
+          ;; Moving
+          (if positive (,forward times) (,backward times))
+          (if positive (,end) (,beginning))
+          ;;
+          (when (divine-scope-around-p)
+            (if positive (,extend-after) (,extend-before))))))))
+
+(cl-defmacro divine-defobject
+    (name docstring &key forward backward beginning end (extend-before 'ignore) (extend-after 'ignore) (special 'identity))
+  "Define the object NAME documented with DOCSTRING.
+
+Two functions will be created: divine-NAME-forward and
+divine-NAME-backward.  They will behave as a regular motion,
+unless the 'inside or 'around scope is activated.
+
+The object is constructed with objects passed as keyword arguments:
+
+ - FORWARD is a command that moves the point to the next object
+ of this motion.
+ - BACKWARD is FORWARD in reverse; if absent, forward is called
+ with a reversed argument.
+ - BEGINNING moves point to the beginning of the object at point.
+ - END moves point to the end of the object at point.
+ - EXTEND-BEFORE moves the point from the beginning of the object
+ in a way that makes sense in the context of the 'around
+ modifier.  If empty, it defaults to (BACKWARD) (END).
+ - EXTEND-AFTER is the same in reverse, and defaults
+ to (FORWARD) (BEGINNING).
+ - SPECIAL is a function that receives the pending operator (as a
+   symbol) and return another symbol that gets run as the actual
+   operator.  Default is `identity'."
+  (let ((name-forward (intern (format "divine-%s-forward" name)))
+        (name-backward (intern (format "divine-%s-backward" name))))
+    `(divine--defobject-make-function
+      ,name-forward
+      ,docstring
+      ,forward
+      ,backward
+      ,beginning
+      ,end
+      ,extend-before
+      ,extend-after)))
+
+(divine-defobject word "Move by words."
+  :forward forward-word
+  :backward backward-word
+  :beginning divine-word-start
+  :end divine-word-end)
+
+(defun divine-word-start ()
+  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
+  (interactive)
+  (let ((beg (car (bounds-of-thing-at-point 'word))))
+    (if beg
+        (goto-char beg)
+      (backward-word))))
+
+(defun divine-word-end ()
+  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
+  (interactive)
+  (let ((beg (cdr (bounds-of-thing-at-point 'word))))
+    (if beg
+        (goto-char beg)
+      (forward-word))))
+
+
+(defun test ()
+  (interactive)
+  (setq current-prefix-arg 3)
+  (divine-scope-inside-force)
+  (divine-word-backward)
+  )
+
+
+(local-set-key (kbd "<f11>") 'test)
+(defun divine-create-standard-scopes ()
+  "Create the standard scopes required by motions created by `divine-defmotion'."
+  (divine-defscope 'inside)
+  (divine-defscope 'around)
+  )
 
 ;;;; Cursor handling
 
@@ -627,6 +751,7 @@ Motion scope: %s"
       (with-temp-buffer
         (insert message)
         (kill-ring-save (point-min) (point-max))))))
+;; @TODO This uses variables from divine.el, move it there?
 
 ;;; Key binding interface
 

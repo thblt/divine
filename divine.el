@@ -34,7 +34,8 @@
 ;;; Misc
 
 (defun divine--toggle-pending-operator-indicator ()
-  ""
+  "Blink the cursor faster if Divine is in pending operator
+state, restore blink speed otherwise."
   (if (divine-pending-operator-p)
       (setq-local blink-cursor-interval .05)
     (setq-local blink-cursor-interval .5)))
@@ -55,7 +56,7 @@
      divine-insert-mode)
     (buffer-read-only divine-insert-mode)
     (t divine-normal-mode))
-  "H"
+  "TODO"
   :group 'divine )
 
 (defun divine--start-eval-rule (rule)
@@ -99,7 +100,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   :cursor 'box)
 
 (defun divine-init-normal-keymap (mode)
-  (divine-define-key mode [remap self-insert-command] 'divine-fail)
+  (divine-define-key mode [remap self-insert] 'divine-fail)
   (divine-define-key mode "0" 'divine-zero :state 'numeric-argument)
   (divine-define-key mode "0" 'beginning-of-line)
   (divine-define-key mode "1" 'digit-argument)
@@ -211,6 +212,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (divine-init-normal-keymap 'g)
 
 (divine-define-key 'g "g" 'divine-beginning-of-buffer)
+(define-key divine-g-mode-map [t] 'divine-abort)
 (divine-define-key 'g "l" 'divine-transient-folds-mode)
 
 ;;; “z” mode

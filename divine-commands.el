@@ -66,7 +66,8 @@ existing scope, and `divine-scope-NAME-flag', to read and consume
 the scope."
   (let ((enter-fn (intern (format "divine-scope-%s-select" name)))
         (force-fn (intern (format "divine-scope-%s-force" name)))
-        (pred-fn (intern (format "divine-scope-%s-flag" name))))
+        (pred-fn (intern (format "divine-scope-%s-p" name)))
+        (peek-fn (intern (format "divine-scope-%s-p" name))))
     `(progn
        (defun ,enter-fn ()
          ,(format "Select '%s as the scope for the next text object.
@@ -95,18 +96,14 @@ If NOCONSUME it non-nil, don't consume the scope." name)
   interface, this accepts 'around or 'inside, like Vim's `a' and
   `i'.")
 
-(defun divine-scope-p ()
-  "Return non-nil if a scope has been selected.  Don't consume the scope.
+(defun divine-scope-p (&optional noconsume)
+  "Return the value of the selected scope, then consume it.
 
-Don't use this function to consume the scope, even if you have
-  only one."
-  divine--object-scope)
-
-(defun divine-scope-flag ()
-  "Like `divine-scope-p', but consume the scope."
+If NOCONSUME, only peek at the scope without consuming it"
   (prog1
       divine--object-scope
-    (setq divine--object-scope nil)))
+    (unless noconsume
+      (setq divine--object-scope nil))))
 
 ;;;; Register argument support
 
@@ -139,11 +136,10 @@ If NOCONSUME is non-nil, don't consume the value."
 (defun divine--text-to-register-helper (&optional delete)
   "A generic helper to move text regions to REGISTER, or to kill-ring.
 
-If DELETE, region is deleted from buffer."
+If DELETE, region is also deleted from buffer."
   (if (divine-register-p)
-      ;; otherwise
-      (copy-to-register (divine-register) (region-beginning) (region-end) delete t))
-  (kill-ring-save (region-beginning) (region-end) t)
+      (copy-to-register (divine-register) (region-beginning) (region-end) delete t)
+    (kill-ring-save (region-beginning) (region-end) t))
   (when delete
     (delete-region (region-beginning) (region-end))))
 
