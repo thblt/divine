@@ -225,87 +225,17 @@ If pasting from the kill-ring, this function pretends to be
 
 ;;;; Character motion
 
-(divine-defmotion divine-char-forward
-  "Move forward ARG character(s)."
-  (forward-char (divine-numeric-argument)))
 
-(divine-reverse-command 'divine-char-forward)
-
-(divine-defmotion divine-char-left
-  "Move backward ARG character(s), on the same line."
-  (left-char (divine-numeric-argument)))
-
-(divine-reverse-command 'divine-char-left)
 
 ;;;; Line motion
 
-(divine-defmotion divine-line-forward
-  "Move forward COUNT line(s).
 
-If COUNT is provided, move through non-visible lines as well."
-
-  ;; (divine-with-numeric-argument
-  ;;  (if naflag
-  ;;      (forward-line count))
-  (next-line (divine-numeric-argument)))
-
-(divine-reverse-command 'divine-line-forward)
-
-(divine-defmotion divine-line-beginning
-  "Go to the first non-space character of current line."
-  (beginning-of-line)
-  (unless (looking-at "^[[:space:]]*$")
-    (search-forward-regexp (rx (not space)))
-    (backward-char)))
-
-(divine-defmotion divine-goto-line
-  "Go to the line indicated by the prefix argument, or fail."
-  (if (divine-numeric-argument-p)
-      (progn (goto-char (point-min))
-             (forward-line (1- (divine-numeric-argument))))
-    (divine-fail)))
-
-(divine-defmotion divine-whole-line
-  "Set mark at the first character of the current-line, and point
-at the last, including the final \n."
-  (beginning-of-line)
-  (push-mark (point))
-  (end-of-line (divine-numeric-argument))
-  (unless (eobp) (forward-char)))
-
-(divine-defmotion divine-line-contents
-  "Set mark at the first character of the current-line, and point
-at the last, including the final \n."
-  (beginning-of-line)
-  (push-mark (point))
-  (end-of-line (divine-numeric-argument)))
 
 ;;;; Buffer motion
 
-(divine-defmotion divine-beginning-of-buffer
-  "Move point to (point-min).
-
-Use this if you want to move to the absolute beginning of buffer."
-  (goto-char (point-min)))
-
-(divine-defmotion divine-end-of-buffer
-  "Move point to (point-max).
-
-Use this if you want to move to the absolute end of buffer."
-  (goto-char (point-max)))
 
 ;;;; Word motion
 
-(divine-defmotion divine-word-forward
-  "Move COUNT word(s) forward."
-  (divine-with-numeric-argument
-   (forward-word count)
-   ;; With a scope.
-   (when (divine-scope-flag)
-     (push-mark (point) t t)
-     (backward-word count))))
-
-(divine-reverse-command 'divine-word-forward)
 
 ;;;; Search
 
@@ -315,19 +245,19 @@ Use this if you want to move to the absolute end of buffer."
    (search-forward (char-to-string (divine-read-char)) nil nil count)
    (unless (eq positive after) (forward-char minus1))))
 
-(divine-defmotion divine-find-char-forward
+(defun divine-find-char-forward ()
   "Before the COUNTh occurence of CHAR forward, after if SCOPE."
   (divine--find-char-helper (divine-scope-flag)))
 
 (divine-reverse-command 'divine-find-char-forward)
 
-(divine-defmotion divine-find-char-forward-before
+(defun divine-find-char-forward-before ()
   "Prompt for a character, then move point forward before the COUNTh occurence."
   (divine--find-char-helper nil))
 
 (divine-reverse-command 'divine-find-char-forward-before)
 
-(divine-defmotion divine-find-char-forward-after
+(defun divine-find-char-forward-after ()
   "Prompt for a character, then move point forward after the COUNTh occurence."
   (divine--find-char-helper t))
 
@@ -335,31 +265,19 @@ Use this if you want to move to the absolute end of buffer."
 
 ;;;; Buffer motion
 
-(divine-defmotion divine-buffer-beginning
+(defun divine-buffer-beginning ()
   "Go to beginning of buffer."
+  (interactive)
   (goto-char (point-min)))
 
-(divine-defmotion divine-buffer-end
+(defun divine-buffer-end ()
   "Go to beginning of buffer."
+  (interactive)
   (goto-char (point-max)))
 
 ;;;; Folds and outline
 
-(divine-defmotion divine-visible-heading-backward
-  "Move COUNT visible headings, backwards."
-  (outline-previous-visible-heading (divine-numeric-argument)))
 
-(divine-defmotion divine-visible-heading-forward
-  "Move COUNT visible headings, backwards."
-  (outline-next-visible-heading (divine-numeric-argument)))
-
-(divine-defaction divine-subtree-move-up
-  "Move the subtree up."
-  (outline-move-subtree-up (divine-numeric-argument)))
-
-(divine-defaction divine-subtree-move-down
-  "Move the subtree down."
-  (outline-move-subtree-down (divine-numeric-argument)))
 
 ;;;; Balanced expressions (Lisp-mode)
 

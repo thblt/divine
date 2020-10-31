@@ -116,8 +116,8 @@ arguments.")
 
 (defvar-local divine--ready-for-operator nil
   "Whether Divine region is ready, that is, the operator can act
-over it.  This is set by all motions and text objects, and can
-be non-nil even if the region has no length.
+over it.  This is set by all motions and text objects, and can be
+non-nil even if the region has no length.
 
 The point of this variable is to make sure that even if a
 motion/object command produced an empty region, the operator will
@@ -555,7 +555,7 @@ The resulting operotar is called divine-NAME."
        ,(format "Divine operator wrapper around `%s', which see." command)
        (call-interactively ',command))))
 
-;;;; Motion definition interface
+;;;; Motion/objects definition interface
 
 
 ;; This works more or less, but is a bit broken.  With a scope
@@ -655,7 +655,6 @@ The object is constructed with objects passed as keyword arguments:
         (goto-char beg)
       (forward-word))))
 
-
 (defun test ()
   (interactive)
   (setq current-prefix-arg 3)
@@ -663,13 +662,33 @@ The object is constructed with objects passed as keyword arguments:
   (divine-word-backward)
   )
 
-
 (local-set-key (kbd "<f11>") 'test)
 (defun divine-create-standard-scopes ()
-  "Create the standard scopes required by motions created by `divine-defmotion'."
+  "Create the standard scopes required by motions created by `divine-defobject'."
   (divine-defscope 'inside)
   (divine-defscope 'around)
   )
+
+(defun divine-swap-pending-operator (repl)
+  "Replace the pending operator with an operator picked from REPL.
+
+REPL is either a list of pair of symbols (FROM . TO), where FROM
+is the active operator, and TO its replacement, or a function
+that takes an operator symbol and returns a replacement
+operator, or nil.
+
+If no replacement is found, the currently pending operator remains."
+  (when divine--pending-operator
+    (setq divine--pending-operator
+          (or
+           (when (functionp repl)
+             (funcall repl))
+           (when (listp repl)
+             (alist-get divine--pending-operator))
+           divine--pending-operator))))
+
+
+
 
 ;;;; Cursor handling
 
