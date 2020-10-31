@@ -1,0 +1,1066 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename divine.info
+@settitle Divine User Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@dircategory Emacs
+@direntry
+* Divine: (divine).     Modal editing interface.
+@end direntry
+
+@finalout
+@titlepage
+@title Divine User Manual
+@author Thibault Polge
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Divine User Manual
+
+Divine is a lightweight and extensible modal interface for Emacs, with
+support for Vim-like text objects.  It provides a complete and
+customizable user interface for text editing, inspired by Emacs
+default bindings, and a simple programming interface for designing new
+commands, motions, operators and modes.  Its core framework is
+completely isolated and can be reused to create completely new modal
+interfaces from scratch.
+
+@html
+    <p>This manual is available in the following formats</p>
+    <ul>
+    <li><a href="divine.html">HTML, all in one page</a></li>
+    <li><a href="index.html">HTML, one page per section</a></li>
+@end html
+
+This manual is for Divine version 0.0 (git fatal: aucun nom trouvé, impossible de décrire quoi que ce soit.).
+
+@quotation
+Copyright @copyright{} 2020 Thibault Polge <thibault@@thb.lt>
+
+You can redistribute this document and/or modify it under the terms
+of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This document is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE@.  See the GNU
+General Public License for more details.
+
+@end quotation
+
+@lisp
+;; Redefine the Key: list item style
+    (defun org-texinfo+key-item (item contents _info)
+      (concat (org-texinfo+maybe-begin-list item 'table)
+              (let ((head (match-string 2 contents))
+                    (body (substring contents (match-end 0))))
+                (if (string-match ", " head)
+                    (let ((key (substring head 0 (match-beginning 0)))
+                          (cmd (substring head (match-end 0))))
+                      (format "\
+    @@kindex %s
+    @@cindex %s
+    @@item @@kbd@{%s@} @@tie@{@}@@tie@{@}@@tie@{@}@@tie@{@}%s
+    %s" key cmd key cmd body))
+                  (error "Bad Key item %s" head)))))
+@end lisp
+
+@example
+org-texinfo+key-item
+@end example
+@end ifnottex
+
+@menu
+* Introduction::
+* Installation::
+* A Tour of Divine::
+* Editing with Divine::
+* Extending Divine::
+* The core Divine framework::
+* Reading Divine docstrings::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Installation
+
+* Manual installation::
+* Install from Melpa::
+* Install from Git, with Borg: Install from Git with Borg. 
+* Install from Git, with Straight: Install from Git with Straight. 
+
+Editing with Divine
+
+* Motion commands::
+* Operators::
+* Text objects::
+* Actions::
+* Modes::
+* Commands::
+
+Motion commands
+
+* Standard motion commands::
+
+Text objects
+
+* Scopes and scoped motions::    Using standard motions as text objects
+* Pure text objects::            Objects that cannot be use as motions
+* Special text object::          The special balanced expression text object
+
+Extending Divine
+
+* Key bindings::
+* Creating actions::
+* Creating operators::
+* Creating motions and text objects::
+* Creating hybrid bindings::
+* Using the numeric argument::
+
+Key bindings
+
+* Adding and removing bindings::
+* Keybindings evaluation order::
+
+The core Divine framework
+
+* Starting Divine: Starting Divine (1). 
+* Modes and normal modes::
+* Creating modes::
+* Activating modes::
+* State and keeping state::
+* Operators and the pending operator state::
+* Operator pending mode::
+* Mode switching and transient modes::
+* Scopes internals::
+* Key binding interface internals::
+
+@end detailmenu
+@end menu
+
+@node Introduction
+@chapter Introduction
+
+@strong{Divine is beta software.}
+
+Divine is a lightweight and extensible modal interface for Emacs, with
+support for Vi-like text objects, but designed to integrate as
+naturally as possible with plain Emacs.
+
+The first visible nchange Divine brings is the introduction of a
+so-called “normal” mode, where letter keys don't insert the
+corresponding letters into the buffer, but run commands.  But the most
+fundamental change is the decoupling of operators and text objects, so
+that @emph{what} you want to do and what you want to act @emph{on} are different
+part of the command input.  Standard Emacs, for example, has multiple
+commands to delete text, depending on what you want to delete: up to
+the end of the word, to the end of the line, the region, and so on.
+Divine has only one, @code{divine-kill}, bound to @samp{k} by default.  When you
+call divine-kill, it kills the region at point, if there's one; if
+there isn't, it sets the mark at the point and waits for the next
+motion command to delete all text between point and mark.
+
+@node Installation
+@chapter Installation
+
+@menu
+* Manual installation::
+* Install from Melpa::
+* Install from Git, with Borg: Install from Git with Borg. 
+* Install from Git, with Straight: Install from Git with Straight. 
+@end menu
+
+@node Manual installation
+@section Manual installation
+
+Clone the source repository somewhere in your @code{load-path}, and convert
+this manual to texinfo by running:
+
+@example
+makeinfo --no-split divine.texi -o divine.info
+install-info divine.info --dir=dir
+@end example
+
+Then load Divine from Emacs
+
+@lisp
+(require 'divine)
+(divine-global-mode)
+@end lisp
+
+@node Install from Melpa
+@section @strong{DONE} Install from Melpa
+
+Divine is not yet available from Melpa. When it will be,
+
+@node Install from Git with Borg
+@section @strong{TODO} Install from Git, with Borg
+
+@node Install from Git with Straight
+@section @strong{TODO} Install from Git, with Straight
+
+@node A Tour of Divine
+@chapter A Tour of Divine
+
+This chapter is an informal introduction to Divine.
+
+@section Starting Divine
+
+To get started, open any buffer you like and make sure you're in
+normal mode by running @samp{M-x divine-normal-mode RET}. (Divine tries to
+be smart about the mode it starts in, so some buffers may start in
+insert mode)
+
+The minor mode lighter shows the active state.  It should display
+@samp{Divine<N>}.
+
+@section Basic motion
+
+Basic motion is very close to ordinary Emacs commands: @samp{F} will go
+forward one character, @samp{B} backward.  @samp{f} and @samp{b} will move forward
+and backward a word, respectively.
+
+With @samp{p} and @samp{n}, you move to the previous
+and the next visible line, respectively.  @samp{a} and @samp{e} go to the
+beginning and end of the current line, @samp{A} end @samp{E} move through
+sentences.
+
+@samp{isearch} is on @samp{s}, @samp{r} for backwards.  @samp{S} and @samp{R} activate regexp
+search.
+
+@node Editing with Divine
+@chapter Editing with Divine
+
+This section is a complete presentation of the Divine editing
+features.  A less formal, but less complete, presentation can be found
+in @ref{A Tour of Divine}, which is a recommended read.
+
+People who wish to build their own modal interface over the Divine
+core may skip most of this chapter, but should nonetheless read the
+description of the fundamental Divine concepts at the top of each node.
+
+@menu
+* Motion commands::
+* Operators::
+* Text objects::
+* Actions::
+* Modes::
+* Commands::
+@end menu
+
+@node Motion commands
+@section Motion commands
+
+In Divine, a @strong{motion} is a command that moves the point around.
+Divine motions are nothing special, and are often regular Emacs
+commands.  Motions can be used in two ways.  You can use them like in
+regular Emacs, to move around in a buffer.  They can also be combined
+with @ref{Operators} to determine the region they operate on.
+
+@menu
+* Standard motion commands::
+@end menu
+
+@node Standard motion commands
+@subsection Standard motion commands
+
+@unnumberedsubsubsec Basic motion
+
+@table @asis
+    @kindex b
+    @cindex COUNT word(s) forward!
+    @item @kbd{b} @tie{}@tie{}@tie{}@tie{}COUNT word(s) forward!
+    @kindex f
+    @cindex COUNT word(s) backward.
+    @item @kbd{f} @tie{}@tie{}@tie{}@tie{}COUNT word(s) backward.
+    @kindex B
+    @cindex COUNT words(s) forward, in @code{superword-mode}.
+    @item @kbd{B} @tie{}@tie{}@tie{}@tie{}COUNT words(s) forward, in @code{superword-mode}.
+    @kindex F
+    @cindex COUNT words(s) backward, in @code{superword-mode}.
+    @item @kbd{F} @tie{}@tie{}@tie{}@tie{}COUNT words(s) backward, in @code{superword-mode}.
+    @kindex C-B
+    @cindex COUNT characters(s) forward.
+    @item @kbd{C-B} @tie{}@tie{}@tie{}@tie{}COUNT characters(s) forward.
+    @kindex C-F
+    @cindex COUNT characters(s) backward.
+    @item @kbd{C-F} @tie{}@tie{}@tie{}@tie{}COUNT characters(s) backward.
+    @kindex p
+    @cindex COUNT line(s) forward.
+    @item @kbd{p} @tie{}@tie{}@tie{}@tie{}COUNT line(s) forward.
+    @kindex n
+    @cindex COUNT line(s) backward.
+    @item @kbd{n} @tie{}@tie{}@tie{}@tie{}COUNT line(s) backward.
+    @kindex p
+    @cindex COUNT paragraphs(s) forward.
+    @item @kbd{p} @tie{}@tie{}@tie{}@tie{}COUNT paragraphs(s) forward.
+    @kindex n
+    @cindex COUNT paragraphs(s) backward.
+    @item @kbd{n} @tie{}@tie{}@tie{}@tie{}COUNT paragraphs(s) backward.
+    @kindex a
+    @cindex to the first non last character of current line.
+    @item @kbd{a} @tie{}@tie{}@tie{}@tie{}to the first non last character of current line.
+    @kindex e
+    @cindex to the first non blank character of current line.
+    @item @kbd{e} @tie{}@tie{}@tie{}@tie{}to the first non blank character of current line.
+@end table
+
+@unnumberedsubsubsec Moving by searching
+
+@table @asis
+    @kindex t
+    @cindex Before COUNTh occurrence of CHAR forward (after if SCOPE).
+    @item @kbd{t} @tie{}@tie{}@tie{}@tie{}Before COUNTh occurrence of CHAR forward (after if SCOPE).
+    @kindex T
+    @cindex Before COUNTh occurrence of CHAR backward (after if SCOPE).
+    @item @kbd{T} @tie{}@tie{}@tie{}@tie{}Before COUNTh occurrence of CHAR backward (after if SCOPE).
+    @kindex s
+    @cindex isearch forward.
+    @item @kbd{s} @tie{}@tie{}@tie{}@tie{}isearch forward.
+    @kindex S
+    @cindex isearch backward.
+    @item @kbd{S} @tie{}@tie{}@tie{}@tie{}isearch backward.
+@end table
+
+@unnumberedsubsubsec Moving around balanced expressions
+
+@node Operators
+@section Operators
+
+Like Vim and other modal editors, Divine has @strong{operators}.  At their
+core, most operators are commands that act on a region.  If a region
+is active, invoking an operator will run it on that region, in the
+same way Emacs' ordinary @code{*-region} commands act (as an example,
+pressing @samp{d} will immediately delete the region).  If no region is
+active, though, Divine enters the “pending operator” state.  The
+operator is then said to be “pending”, and will run as soon as the
+point moves, between its previous and new positions.
+
+@subsection Standard operators
+
+The first three operators' bindings can be pressed twice to operate on
+the current line.  For example, @samp{dd} kills the current line.
+
+@table @asis
+    @kindex k
+    @cindex Kill REGION* to REGISTER@.
+    @item @kbd{k} @tie{}@tie{}@tie{}@tie{}Kill REGION* to REGISTER@.
+    @kindex c
+    @cindex Kill REGION* to REGISTER, then enter insert mode.
+    @item @kbd{c} @tie{}@tie{}@tie{}@tie{}Kill REGION* to REGISTER, then enter insert mode.
+    @kindex w
+    @cindex Copy REGION* to REGISTER@.
+    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}Copy REGION* to REGISTER@.
+
+    @kindex w
+    @cindex wrap REGION with DELIMITER@.
+    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}wrap REGION with DELIMITER@.
+    @kindex =
+    @cindex indent REGION@.
+    @item @kbd{=} @tie{}@tie{}@tie{}@tie{}indent REGION@.
+    @kindex SPC o
+    @cindex Sort REGION@.
+    @item @kbd{SPC o} @tie{}@tie{}@tie{}@tie{}Sort REGION@.
+@end table
+
+@node Text objects
+@section Text objects
+
+A text object is similar to a motion, except that it acts on both the
+point and the mark.  There are two types of text objects: @strong{scoped
+motions}, which are regular motions with a scope modifier, and @strong{pure
+text objects}, which cannot be used as motions.  Some text objects are
+also @strong{special}: special text objects replace pending operators with
+their own implementation.
+
+@menu
+* Scopes and scoped motions::    Using standard motions as text objects
+* Pure text objects::            Objects that cannot be use as motions
+* Special text object::          The special balanced expression text object
+@end menu
+
+@node Scopes and scoped motions
+@subsection Scopes and scoped motions
+
+The most common text objects are @strong{scoped motions}.  Standard motions,
+ when called with a scope modifier, behave as text objects by moving
+ the mark to the beginning of the thing they normally navigate, and
+ the point in the normal way.
+
+Divine commands know two standard scopes: @samp{inside} and @samp{around}.
+activated by @samp{i} and @samp{ii}, respectively.  Most basic motion commands
+respect these scopes, and behave as text objects when one is active.
+For example, @samp{di2w} will delete two full words, starting from the one
+the point's on.  @samp{da2w} will do the same, also eating the surrounding
+space.
+
+@itemize
+@item
+Key @samp{i}, increase scope.
+
+If no scope is currently active, activate the INSIDE scope.
+Otherwise, activate AROUND@.
+@end itemize
+
+@node Pure text objects
+@subsection Pure text objects
+
+@node Special text object
+@subsection Special text object
+
+A special text object is a text object that can replace a pending
+operator.  This is meant to let standard operators apply to cases they
+weren't designed to.  Divine has only one such text object, @samp{w}, the
+balanced expression operator, that can be used to rewrap or unwrap
+balanced expressions with the change and delete operator, and no
+scope.
+
+@table @asis
+    @kindex w
+    @cindex Balanced expression text object.
+    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}Balanced expression text object.
+    
+Prompt for a pair delimiter, and selects the COUNTh balanced
+expression containing the point and bounded by this delimiter.
+
+If SCOPE is @samp{inside}, the contents of the expressions are selected.
+
+If SCOPE is @samp{around}, the delimiters are selected as well.
+
+If no SCOPE, and @samp{divine-kill} or @samp{divine-change} are pending,
+they're replaced with @code{divine-unwrap} or @code{divine-rewrap},
+respectively.
+@end table
+
+@node Actions
+@section Actions
+
+Actions are simple commands that don't use the region and cannot be
+combined with anything else.  Actions change the value of neither the
+point nor the mark, unless they modify the buffer contents (for
+example, @samp{y} modifies the point by moving it after the inserted text).
+
+In standard binding evaluation order, actions have the higher priority.
+
+@subsection Standard actions
+
+@table @asis
+    @kindex d
+    @cindex delete COUNT character(s) forward.
+    @item @kbd{d} @tie{}@tie{}@tie{}@tie{}delete COUNT character(s) forward.
+    @kindex r
+    @cindex replace COUNT character(s) forward with CHAR@.
+    @item @kbd{r} @tie{}@tie{}@tie{}@tie{}replace COUNT character(s) forward with CHAR@.
+    @kindex RET
+    @cindex open line after current line.
+    @item @kbd{RET} @tie{}@tie{}@tie{}@tie{}open line after current line.
+    @kindex y
+    @cindex Insert contents of REGISTER at point, or COUNTh entry in
+    @item @kbd{y} @tie{}@tie{}@tie{}@tie{}Insert contents of REGISTER at point, or COUNTh entry in
+    kill-ring.
+@end table
+
+@node Modes
+@section Modes
+
+Divine is a modal interface.  A modal interface is an interface in
+which the results of an action is determined by the current mode.
+Although Divine provides a complete set modes, this chapter will only
+focus on the two most essential: @strong{Normal} and @strong{Insert}.
+
+@itemize
+ @item
+ @strong{Insert mode}is similar to regular Emacs, except it has a
+binding to switch to Normal mode.
+@end itemize
+
+@strong{Normal mode} binds single letters to composable action and motion
+commands.  It is also the entry point to other modes.
+
+Modes in Divine can be activated permanently or temporarily.
+Temporary activation is called @strong{transient}.  A transient mode will
+terminate and revert to the previous mode as soon as an action has
+completed.
+
+Being transient isn't a property of the mode, but of the activation of
+a mode.
+
+@node Commands
+@section Commands
+
+A @strong{command} is nothing more than a regular Emacs command, that is, an
+@code{(interactive)} function.  Commands can be bound in Divine the same
+way they're bound in regular Emacs.  Because Divine underlying
+interface is a bit more tricky than Emacs',
+
+@node Extending Divine
+@chapter Extending Divine
+
+This chapter describes how you can add create your own operators,
+motions, and modes on top of the standard interface.
+
+@menu
+* Key bindings::
+* Creating actions::
+* Creating operators::
+* Creating motions and text objects::
+* Creating hybrid bindings::
+* Using the numeric argument::
+@end menu
+
+@node Key bindings
+@section Key bindings
+
+@menu
+* Adding and removing bindings::
+* Keybindings evaluation order::
+@end menu
+
+@node Adding and removing bindings
+@subsection Adding and removing bindings
+
+Divine has a special keybinding mechanism that allows to easily bind
+different commands on the same key, to be selected depending on
+context.  For a given key, in a given Divine mode, a binding can be
+conditioned by three different predicates, which can be combined:
+
+@itemize
+@item
+a @strong{mode predicate}, which limits this bindings to a given Emacs mode;
+
+@item
+a @strong{type predicate}, which runs this binding when a given Divine
+command type is legal (action, motion, object, operator…)
+
+@item
+an @strong{arbitrary elisp predicate}, which can be used to further
+specialize the binding.
+@end itemize
+
+All predicates default to an always-true value; they thus must all
+evaluate to non-nil at the moment the user triggers a binding for
+their associated command to run.
+
+@defun divine-define-key
+
+Bind KEY to COMMAND in Divine mode MODE@.
+
+MODE is the short name of a Divine mode, like ’normal or ’insert.
+
+STATE is a predicate that depends of the current
+interactive state of Divine.  It usually corresponds to the
+type of the command.
+
+EMACS-MODE is a symbol identifying an Emacs major or minor
+mode.
+
+Bindings are compiled by ‘divine-compile-bindings’, which see.
+
+(fn MODE KEY COMMAND &key ((:mode EMACS-MODE) 't) ((:state STATE) 't) ((:when PRED) 't))
+@end defun
+
+@quotation Notice
+The @code{:type} of a binding is only used to choose between multiple
+bindings on the same key.  It has no effect on the actual command
+being run.
+
+@end quotation
+
+@node Keybindings evaluation order
+@subsection Keybindings evaluation order
+
+As specified above, binding definitions have three conditions: emacs
+mode, binding type, and an arbitrary predicate.
+
+@code{divine-define-key} also sorts binding definitions, so that their
+evaluation order is determined and, if possible, makes sense.
+Comparing two bindings is done in the following order:
+
+@itemize
+@item
+Emacs modes are first sorted alphabetically. The special value @code{t},
+which enables the binding for all modes and is the default for
+@code{:mode}, sorts after everything else, so mode-specific bindings get
+evaluated before generic bindings.
+
+@item
+If Emacs modes are equal, types are compared by the order they
+appear in the car of each element of @code{divine-binding-states}.  The
+default magic value for @code{:type}, t, should be present in
+@code{divine-binding-states} in last position.  That is, evaluation is
+performed in the order specified by this variable.
+
+The default value orders types as follows:
+
+@itemize
+@item
+@code{action} runs iff the region isn't active and no operator
+is pending.
+
+@item
+@code{operator} runs iff the region is active or no operator is
+pending.
+
+@item
+@code{default-motion} runs iff the previous command was called with
+the same binding and set an operator as pending.
+@end itemize
+
+
+@item
+If types are equal, predicates are compared the same way Emacs mode
+are.  At this point, predicates cannot be equal: for a given key on
+a given Divine mode, bindings are identified by the triplet (mode,
+type, predicate).  Inserting a new binding with the same three
+values replace the existing binding.
+@end itemize
+
+Bindings are evaluated in the order defined by the variable
+@code{divine-binding-types}.
+
+@node Creating actions
+@section Creating actions
+
+The easiest way to create an action is the @code{divine-defaction} macro.
+
+@defmac divine-defaction
+
+Define an action NAME for Divine.
+
+An action is similar to an operator that doesn’t need a region.
+It is legal whenever an operator is, but is never pending.
+@end defmac
+
+@node Creating operators
+@section Creating operators
+
+@defmac divine-defoperator
+
+Define a Divine operator NAME with doc DOCSTRING@.
+
+BODY is the code of the operator.  It should work on the region,
+whether it’s active or not, by reading (point) and (mark).
+Notice that the region may be empty.
+
+Operators need not check anything about the runtime Divine state,
+although they can of course access the state variables they need
+to adjust their behavior.  To do so, please only use the divine-
+accessors, like ‘divine-numeric-argument’, which will correctly
+consume the state variables.  Notice that if the operator runs
+after having been pending, it will read state after the motion
+that created the region, so part of the state may have already
+been consumed.
+@end defmac
+
+To access the prefix argument from within an operator, see
+@ref{Using the numeric argument}.
+
+@node Creating motions and text objects
+@section Creating motions and text objects
+
+@node Creating hybrid bindings
+@section Creating hybrid bindings
+
+@node Using the numeric argument
+@section Using the numeric argument
+
+@node The core Divine framework
+@chapter The core Divine framework
+
+Divine was designed with extensibility and modularity in mind.  The
+modal user interface Divine provides is implemented on top of a very
+abstract core, defined in @samp{divine-core.el}.  This core has no
+dependencies besides Emacs itself.  This chapter describes what it
+provides, and how you can write custom modal interfaces over it.
+
+@menu
+* Starting Divine: Starting Divine (1). 
+* Modes and normal modes::
+* Creating modes::
+* Activating modes::
+* State and keeping state::
+* Operators and the pending operator state::
+* Operator pending mode::
+* Mode switching and transient modes::
+* Scopes internals::
+* Key binding interface internals::
+@end menu
+
+@node Starting Divine (1)
+@section Starting Divine
+
+Divine is defined as a minor mode, @samp{divine-mode}.
+
+The core is not complete in itself.  You need to provide at least the
+@samp{divine-start} function.
+
+@defun divine-start
+
+@samp{divine-mode} calls @samp{divine-start} with no argument to initialize
+Divine.  @samp{divine-start} should activate a Divine mode (or calling
+@samp{divine-mode} will have no effect) and can do anything needed to
+initialize Divine.
+
+In the default interface, divine-start also registers a few hooks,
+mostly for visual feedback of the Divine state.
+@end defun
+
+@samp{divine-mode} doesn't do much in itself: all it does is install the
+hooks Divine needs to work, before running the startup mode.
+
+@node Modes and normal modes
+@section Modes and normal modes
+
+Divine command loop is based around a so-called ``normal'' mode.
+Although the Divine interface has multiple modes, the whole divine
+infrastructure is designed to support one or more ``normal''
+modes. Fundamentally, a normal mode is a mode where commands can be
+entered in separate parts, typically an action followed by a motion or
+an object, but also a register selection or a numeric argument, and so
+on.  A typical normal mode command sequence, using the standard Divine
+settings, could look like:
+
+@example
+" b k a 2 (
+┯ ┯ ┯ ┯ ┯ ┯
+│ │ │ │ │ └ text object: parenthesized block
+│ │ │ │ └ numeric argument
+│ │ │ └ "around" object modifier
+│ │ └ kill command
+│ └ register name
+└ register selection command
+@end example
+
+This sequence first selects the register the next kill/copy command
+will act on, activates the kill command, activates a scope modifier to
+make the next motion a text object, a multiplier, then the motion
+command to select the previous parentheses. Since there's a scope
+modifier, it selects the full parenthesized text, and since there's a
+multiplier, it actually selects one more parenthesized group outside
+the surrounding one.
+
+@node Creating modes
+@section Creating modes
+
+Divine is a set of modes.  The smallest set is made of two modes: a
+normal mode and an insertion mode. Ususally, insertion mode does not
+use any Divine features: it binds no operators and no scope modifiers,
+so it really behaves like regular Emacs, with the exception of one
+binding to enter normal mode.
+
+Modes are created using the @samp{divine-defmode} macro.
+
+@defmac divine-defmode
+
+Define the Divine mode NAME, with documentation DOCSTRING@.
+
+NAME is a short identifier, like normal or insert.
+
+The following optional keyword arguments are accepted.
+
+@itemize
+@item
+‘:cursor’ The cursor style for this mode, as a valid argument
+for ‘set-cursor’, which see.
+
+@item
+‘:cursor-color’ The cursor color for this mode, as an hex
+string or en Emacs color name.
+
+@item
+‘:lighter’ The mode lighter.
+
+@item
+‘:mode-name’ The actual Emacs mode name.   This defaults to divine-NAME-mode.
+
+@item
+‘:rname’ A readable name for the mode, as a string.
+
+@item
+‘:transient-fn’ The name of the function used to temporarily activate the mode.
+@end itemize
+
+(fn NAME DOCSTRING &key CURSOR CURSOR-COLOR LIGHTER MODE-NAME TRANSIENT-FN RNAME)
+@end defmac
+
+@subsection @strong{TODO} Cursor appearance
+
+To make modes visually distinguishable, they can define a cursor appearance.
+
+@node Activating modes
+@section Activating modes
+
+Some modes are long-lived ones, others you leave just after you've
+entered them. If you enter a mode in pending operator mode, you
+probably don't want to stay there. This is why there are three ways to
+activate a mode: normal, transient and fragile.
+
+@subsection Normal activation
+
+In @strong{normal activation}, the mode is activated and must be terminated
+explicitly.  It deactivates all other Divine modes and behave as the
+main mode, until another mode gets activated.
+
+@subsection Transient activation
+
+In @strong{transient activation}, the modes get activated for a single
+command, then hands back control to the calling mode.  Transient modes
+can be nested (that is, a transient mode can transiently activate
+another mode): they'll collapse back to the first non-transient caller
+mode.
+
+@subsection Operator-transient activation
+
+It seems natural that modes entered when an operator is pending be
+deactivated when the operator gets executed or evaluated.
+@strong{operator-transient activation} does exactly this.  This is the
+default behavior for all modes.
+
+@defvar divine--transient-stack
+
+Stack of modes to restore after a transient operation.
+@end defvar
+
+@node State and keeping state
+@section State and keeping state
+
+Divine modes are regular Emacs modes, but to support the
+functionalities described above, they're made statuful by
+Divine. Hence, Divine modes are always in a given state.  The base
+state is identical to regular Emacs:  Keys are bound to functions, and
+these functions run normally.
+
+In base Divine, a state is made of the following components, all
+optional:
+
+@itemize
+@item
+The @strong{pending operator}, if any, as described in @ref{Operators and the pending operator state}.
+
+@item
+The @strong{numeric prefix argument}, tracked using regular Emacs
+mechanisms.
+
+@item
+The @strong{scope modifier} argument, as described in @ref{Scopes internals}.
+@end itemize
+
+@subsection Keeping state
+
+The main job of Divine regarding state is twofold.  Because the prefix
+argument may be passed to a different function than the one that will
+ultimately consume it, it must be persisted back for as long as it may
+be needed. The other state variables, on the other hand, need to be
+erased as soon as a command has been run.
+
+These two operations are performed by a @samp{post-command-hook}, and are
+controlled by the variable @samp{divine--continue}, itself controlled by
+the function divine-continue.
+
+@defvar divine--continue
+
+ Whether the Divine state must be preserved at the end of the
+command loop.  This variable should be set by ‘divine-continue’,
+which see.
+
+When inspected interactively, this variable is always nil.
+@end defvar
+
+@defun divine-continue
+
+Make unconsumed Divine state variables persist after the current command.
+@end defun
+
+In normal use, @samp{divine-continue} is called by actions that
+@emph{accumulate} states:
+
+@itemize
+@item
+Operators, when they register themselves as pending.
+
+@item
+Other state functions when the add state, for example a scope
+modifier when it's activated.
+@end itemize
+
+When @samp{divine--continue}, @samp{divine-post-command-hook} will store back
+the digit argument into @samp{prefix-arg}. Other state variables need not
+be modified.
+
+@subsection Dropping state
+
+State must not be endlessly persisted, so when @samp{divine--continue} is
+@samp{nil} in the @samp{post-command-hook}, all state variables are set back to
+@samp{nil} and the value of @samp{prefix-arg} isn't saved back.
+
+@subsection Consuming state
+
+Because a Divine operator can execute two functions that may consume
+state, the Divine state accessors @emph{consume} the resource they
+return. For example, @samp{divine-numeric-argument} returns the value of
+the numeric argument, then drops it, so further calls will return nil.
+
+By convention, accessors have an @samp{&optional noconsume} argument for,
+eg, conditions on the presence of the argument before actually
+consuming it.  Some, like the numeric argument, also provide accessors
+macros that makes common processing easy.
+
+@subsection Creating and registering new state variables
+
+In implementing your own Divine-based commands, you may want to add
+new state parameters. To do so, you need to create a function that
+will reset those variables to a base value, and add this function
+to @samp{divine-clear-state-functions}.
+
+@defvar divine-clear-state-functions
+
+Functions to call for dropping buffer state.
+
+If you add state variables for your custom commands, create a
+function to clear them (return them to their initial value) and
+add it to this list.  Don’t erase the initial value or you will
+break Divine.
+
+Functions in this list should accept, and ignore, any number of
+arguments.
+@end defvar
+
+@node Operators and the pending operator state
+@section Operators and the pending operator state
+
+In Divine, an @strong{operator} is an interactive function, acting on a
+region.
+
+When an operator is called (eg, by pressing @samp{k} for @samp{divine-kill}), it
+first determines if it should run immediately.  This is done by
+calling @samp{divine-run-operator-p}.  At this point, this function will
+only return non-nil if there's an active, non-empty region.  If this
+is the case, the operator runs immediately between
+@samp{(region-beginning)} and @samp{(region-end)}.
+
+Otherwise, it Divine isn't already in pending operator state, it
+enters it. The operator name is stored in the variable
+@samp{divine--pending-operator}, and state is persisted.
+
+If Divine is already in pending operator state, then two situations may
+arise:
+
+@itemize
+@item
+The same operator is already pending, in which case it is
+executed on the default object, as defined by the
+@samp{divine-defoperator} macro.
+
+@item
+A different operator is pending, and what happens then is
+determined by the @samp{divine-operator-conflict-method} variable,
+which see.
+@end itemize
+
+The operator pending state is terminated by @samp{divine-abort} or by the
+next motion command.
+
+@subsection Defining operators
+
+Operators can be defined either from scratch, with the
+@samp{divine-defoperator} macro:
+
+@defmac divine-defoperator
+
+Define a Divine operator NAME with doc DOCSTRING@.
+
+BODY is the code of the operator.  It should work on the region,
+whether it’s active or not, by reading (point) and (mark).
+Notice that the region may be empty.
+
+Operators need not check anything about the runtime Divine state,
+although they can of course access the state variables they need
+to adjust their behavior.  To do so, please only use the divine-
+accessors, like ‘divine-numeric-argument’, which will correctly
+consume the state variables.  Notice that if the operator runs
+after having been pending, it will read state after the motion
+that created the region, so part of the state may have already
+been consumed.
+@end defmac
+
+Or they can be defined by wrapping an existing action:
+
+@defmac divine-wrap-operator
+
+Wrap the Emacs command COMMAND as a Divine operator.
+
+The resulting operotar is called divine-NAME@.
+
+(fn COMMAND &key)
+@end defmac
+
+@node Operator pending mode
+@section Operator pending mode
+
+@defvar divine-pre-command-hook
+
+nil
+@end defvar
+
+@node Mode switching and transient modes
+@section Mode switching and transient modes
+
+@node Scopes internals
+@section Scopes internals
+
+The standard scope modifiers @samp{around} and @samp{inside} are not part of the core.  All the core provides is a scope definition macro, @samp{divine-defscope}.
+
+@defmac divine-defscope
+
+Define the Divine scope modifier NAME@.
+
+This macro generates three functions: ‘divine-scope-NAME-select’
+to activate the scope if no other scope is already selected,
+‘divine-scope-NAME-force’ to activate it, optionally replacing an
+existing scope, and ‘divine-scope-NAME-flag’, to read and consume
+the scope.
+@end defmac
+
+@node Key binding interface internals
+@section Key binding interface internals
+
+@node Reading Divine docstrings
+@appendix Reading Divine docstrings
+
+Divine docstrings may include one or more of the following
+placeholders:
+
+@itemize
+ @item
+ @code{COUNT}The numeric argument, or 1.
+
+@item
+ @code{COUNTh}The numeric argument, or 1, as an ordinal value.
+
+@item
+ @code{REGISTER}The register argument.
+
+@item
+ @code{REGISTER*}The register argument, or a default, non-register
+storage, usually the kill ring.
+
+@item
+ @code{SCOPE}The selected scope.  “If SCOPE” means: if a scope is
+selected.
+
+@item
+ @code{CHAR}A character the command will prompt the user for.
+
+@item
+ @code{DELIMITER}Like CHAR, for pairable characters, like (), [], @{@},
+etc.
+@end itemize
+
+@bye

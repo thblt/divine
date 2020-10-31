@@ -4,7 +4,7 @@
 #+EMAIL: thibault@thb.lt
 #+DATE: 2020
 #+LANGUAGE: en
-#+OPTIONS: h:6 num:3
+#+OPTIONS: h:6 num:3 ':t
 
 #+TEXINFO_DEFFN: t
 #+TEXINFO_DIR_CATEGORY: Emacs
@@ -51,20 +51,20 @@ This manual is for Divine version call_version().
 
 #+NAME: init
 #+begin_src emacs-lisp :exports code :results silent
-;; Redefine the Key: list item style
-  (defun org-texinfo+key-item (item contents _info)
-    (concat (org-texinfo+maybe-begin-list item 'table)
-            (let ((head (match-string 2 contents))
-                  (body (substring contents (match-end 0))))
-              (if (string-match ", " head)
-                  (let ((key (substring head 0 (match-beginning 0)))
-                        (cmd (substring head (match-end 0))))
-                    (format "\
-  @kindex %s
-  @cindex %s
-  @item @kbd{%s} @tie{}@tie{}@tie{}@tie{}%s
-  %s" key cmd key cmd body))
-                (error "Bad Key item %s" head)))))
+    ;; Redefine the Key: list item style
+        (defun org-texinfo+key-item (item contents _info)
+          (concat (org-texinfo+maybe-begin-list item 'table)
+                  (let ((head (match-string 2 contents))
+                        (body (substring contents (match-end 0))))
+                    (if (string-match ", " head)
+                        (let ((key (substring head 0 (match-beginning 0)))
+                              (cmd (substring head (match-end 0))))
+                          (format "\
+        @kindex %s
+        @cindex %s
+        @item @kbd{%s} @tie{}@tie{}@tie{}@tie{}%s
+        %s" key cmd key cmd body))
+                      (error "Bad Key item %s" head)))))
 #+end_src
 
 #+NAME: version
@@ -76,30 +76,39 @@ This manual is for Divine version call_version().
 #+end_src
 
 #+NAME: describe
-#+begin_src emacs-lisp :var func='nil var='nil :exports none :results value raw hsilent
-  (let ((type (cond ((and func (macrop func)) "Macro")
-                    (func "Function")
-                    (var "Variable")
-                    (t (error "Cannot describe %s as a function or %s as a variable." func var))))
-        (doc (documentation func t)) )
-    (with-temp-buffer
-      (insert (format " - %s: %s \n\n" type (symbol-name func)))
-      (if func (insert (documentation func nil)) (documentation-property var 'variable-documentation nil))
-      (when func
-        (goto-char (point-max))
-        (delete-char -1)
-        (beginning-of-line)
-        (delete-char 4)
-        (kill-line)
-        (goto-char (point-min))
-        (end-of-line)
-        (yank)
+#+begin_src emacs-lisp :var what=0 as='guess :exports none :results value raw hsilent
+    (unless (symbolp what) (error "I want a symbol, not %s!" what))
+    (when (eq as 'guess)
+      (if (and (fboundp what) (boundp what))
+          (error "Sorry, I wont't guess the type of %s which is both a function and a variable."))
+      (setq as (if (fboundp what) 'func 'var)))
+
+    (let ((type (cond ((and (eq as 'func) (macrop what)) "Macro")
+                      ((eq as 'func) "Function")
+                      ((eq as 'var) "Variable")
+                      (t (error "Not a valid type, %s!" as)))))
+      (with-temp-buffer
+        (insert (format " - %s: %s\n\n %s"
+                        type
+                        (symbol-name what)
+                        (if (eq as 'func) (documentation what nil)
+                          (documentation-property what 'variable-documentation nil))))
+        ;; (goto-char (point-max))
+        ;; (delete-char -1)
+        ;; (beginning-of-line)
+        ;; (delete-char 4)
+        ;; (kill-line)
+        ;; (goto-char (point-min))
+        ;; (end-of-line)
+        ;; (yank)
         ;; Indent
+        (goto-char (point-min))
         (while (not (eobp))
-          (next-logical-line)
+          (next-line)
           (beginning-of-line)
-          (insert "    "))
-        (buffer-string))))
+          (insert "    ")
+          (end-of-line))
+        (buffer-string)))
 #+end_src
 #+CALL: init()
 :END:
@@ -109,21 +118,21 @@ This manual is for Divine version call_version().
 *Divine is beta software.*
 
 Divine is a lightweight and extensible modal interface for Emacs, with
-support for Vi-like text objects, but designed to integrate naturally
-with Emacs.
+support for Vi-like text objects, but designed to integrate as
+naturally as possible with plain Emacs.
 
-The most obvious change Divine brings is the introduction of a
+The first visible nchange Divine brings is the introduction of a
 so-called “normal” mode, where letter keys don't insert the
-corresponding letters into the buffer, but run commands instead.  But
-the most fundamental change is the decoupling of operators and text
-objects, so that /what/ you want to do and what you want to act /on/
-are different part of the command input.  Standard Emacs, for example,
-has multiple commands to delete text, depending on what you want to
-delete: up to the end of the word, to the end of the line, the region,
-and so on.  Divine has only one, ~divine-kill~, bound to =d= by
-default.  When you call divine-kill, it kills the region at point, if
-there's one; if there isn't, it sets the mark at the point and waits
-for the next motion command to delete all text between point and mark.
+corresponding letters into the buffer, but run commands.  But the most
+fundamental change is the decoupling of operators and text objects, so
+that /what/ you want to do and what you want to act /on/ are different
+part of the command input.  Standard Emacs, for example, has multiple
+commands to delete text, depending on what you want to delete: up to
+the end of the word, to the end of the line, the region, and so on.
+Divine has only one, ~divine-kill~, bound to =k= by default.  When you
+call divine-kill, it kills the region at point, if there's one; if
+there isn't, it sets the mark at the point and waits for the next
+motion command to delete all text between point and mark.
 
 * Installation
 
@@ -393,7 +402,6 @@ interface is a bit more tricky than Emacs',
 This chapter describes how you can add create your own operators,
 motions, and modes on top of the standard interface.
 
-
 ** Key bindings
 
 *** Adding and removing bindings
@@ -413,7 +421,7 @@ All predicates default to an always-true value; they thus must all
 evaluate to non-nil at the moment the user triggers a binding for
 their associated command to run.
 
-#+CALL: describe(func='divine-define-key)
+#+CALL: describe(what='divine-define-key)
 
 #+ATTR_TEXINFO: :tag Notice
 #+BEGIN_QUOTE
@@ -463,11 +471,11 @@ Bindings are evaluated in the order defined by the variable
 
 The easiest way to create an action is the ~divine-defaction~ macro.
 
-#+CALL: describe(func='divine-defaction)
+#+CALL: describe(what='divine-defaction)
 
 ** Creating operators
 
-#+CALL:describe(func='divine-defoperator)
+#+CALL:describe(what='divine-defoperator)
 
 To access the prefix argument from within an operator, see
 [[#reading-prefix-arg]].
@@ -481,55 +489,278 @@ To access the prefix argument from within an operator, see
 :custom_id: reading-prefix-arg
 :END:
 
-** Creating modes
 
-#+CALL: describe(func='divine-defmode)
-
-* The Divine framework
+* The core Divine framework
 :PROPERTIES:
 :custom_id: framework
 :END:
 
 Divine was designed with extensibility and modularity in mind.  The
 modal user interface Divine provides is implemented on top of a very
-abstract core, contained in =divine-core.el=.  This core has no
-dependencies besides core Emacs.  This chapter describes what it
+abstract core, defined in =divine-core.el=.  This core has no
+dependencies besides Emacs itself.  This chapter describes what it
 provides, and how you can write custom modal interfaces over it.
 
-Notice that the commands library =divine-commands.el= makes very few
-assumptions about the general interface it's called from, and thus is
-generally usable to implement custom Divine interfaces.
-
 ** Starting Divine
+
+Divine is defined as a minor mode, =divine-mode=.
 
 The core is not complete in itself.  You need to provide at least the
 =divine-start= function.
 
- - *divine-start*
+ - Function: divine-start
 
    =divine-mode= calls =divine-start= with no argument to initialize
    Divine.  =divine-start= should activate a Divine mode (or calling
-   =divine-mode= will have no effect) and can do can do anything
-   needed to initialize Divine.
+   =divine-mode= will have no effect) and can do anything needed to
+   initialize Divine.
 
-   In the default interface, divine-start also registers a few hooks.
+   In the default interface, divine-start also registers a few hooks,
+   mostly for visual feedback of the Divine state.
 
-** The Divine command loop
+=divine-mode= doesn't do much in itself: all it does is install the
+hooks Divine needs to work, before running the startup mode.
 
-Divine plugs itself into multiple into of the Emacs command loop,
-using only Emacs standard hooks.
+# @TODO. =divine-start= can be removed. All divine.el needs to do is
+# install some hooks, and divine-mode can provide the initial mode
+# logic.
 
-#+CALL: describe(func='divine-pre-command-hook)
+** Modes and normal modes
+
+Divine command loop is based around a so-called "normal" mode.
+Although the Divine interface has multiple modes, the whole divine
+infrastructure is designed to support one or more "normal"
+modes. Fundamentally, a normal mode is a mode where commands can be
+entered in separate parts, typically an action followed by a motion or
+an object, but also a register selection or a numeric argument, and so
+on.  A typical normal mode command sequence, using the standard Divine
+settings, could look like:
+
+#+begin_example
+  " b k a 2 (
+  ┯ ┯ ┯ ┯ ┯ ┯
+  │ │ │ │ │ └ text object: parenthesized block
+  │ │ │ │ └ numeric argument
+  │ │ │ └ "around" object modifier
+  │ │ └ kill command
+  │ └ register name
+  └ register selection command
+#+end_example
+
+This sequence first selects the register the next kill/copy command
+will act on, activates the kill command, activates a scope modifier to
+make the next motion a text object, a multiplier, then the motion
+command to select the previous parentheses. Since there's a scope
+modifier, it selects the full parenthesized text, and since there's a
+multiplier, it actually selects one more parenthesized group outside
+the surrounding one.
+
+** Creating modes
+
+Divine is a set of modes.  The smallest set is made of two modes: a
+normal mode and an insertion mode. Ususally, insertion mode does not
+use any Divine features: it binds no operators and no scope modifiers,
+so it really behaves like regular Emacs, with the exception of one
+binding to enter normal mode.
+
+Modes are created using the =divine-defmode= macro.
+
+#+CALL: describe(what='divine-defmode)
+
+*** TODO Cursor appearance
+:PROPERTIES:
+:nonode:   t
+:END:
+
+To make modes visually distinguishable, they can define a cursor appearance.
+
+** Activating modes
+
+Some modes are long-lived ones, others you leave just after you've
+entered them. If you enter a mode in pending operator mode, you
+probably don't want to stay there. This is why there are three ways to
+activate a mode: normal, transient and fragile.
+
+*** Normal activation
+:PROPERTIES:
+:nonode:   t
+:END:
+
+In *normal activation*, the mode is activated and must be terminated
+explicitly.  It deactivates all other Divine modes and behave as the
+main mode, until another mode gets activated.
+
+*** Transient activation
+:PROPERTIES:
+:nonode:   t
+:END:
+
+In *transient activation*, the modes get activated for a single
+command, then hands back control to the calling mode.  Transient modes
+can be nested (that is, a transient mode can transiently activate
+another mode): they'll collapse back to the first non-transient caller
+mode.
+
+# @TODO How to handle cases where a transient mode is active, but the
+# next command is not from the mode? Make a config var.
+
+*** Operator-transient activation
+:PROPERTIES:
+:nonode:   t
+:END:
+
+It seems natural that modes entered when an operator is pending be
+deactivated when the operator gets executed or evaluated.
+*operator-transient activation* does exactly this.  This is the
+default behavior for all modes.
+
+#+CALL: describe(what='divine--transient-stack)
+
+** State and keeping state
+
+Divine modes are regular Emacs modes, but to support the
+functionalities described above, they're made statuful by
+Divine. Hence, Divine modes are always in a given state.  The base
+state is identical to regular Emacs:  Keys are bound to functions, and
+these functions run normally.
+
+In base Divine, a state is made of the following components, all
+optional:
+
+  - The *pending operator*, if any, as described in [[#core-operators]].
+  - The *numeric prefix argument*, tracked using regular Emacs
+    mechanisms.
+  - The *scope modifier* argument, as described in [[#core-scopes]].
+
+*** Keeping state
+:PROPERTIES:
+:nonode:   t
+:END:
+
+The main job of Divine regarding state is twofold.  Because the prefix
+argument may be passed to a different function than the one that will
+ultimately consume it, it must be persisted back for as long as it may
+be needed. The other state variables, on the other hand, need to be
+erased as soon as a command has been run.
+
+These two operations are performed by a =post-command-hook=, and are
+controlled by the variable =divine--continue=, itself controlled by
+the function divine-continue.
+
+#+call: describe(what='divine--continue)
+
+#+call: describe(what='divine-continue)
+
+In normal use, =divine-continue= is called by actions that
+/accumulate/ states:
+
+ - Operators, when they register themselves as pending.
+ - Other state functions when the add state, for example a scope
+   modifier when it's activated.
+
+When =divine--continue=, =divine-post-command-hook= will store back
+the digit argument into =prefix-arg=. Other state variables need not
+be modified.
+
+*** Dropping state
+:PROPERTIES:
+:nonode:   t
+:END:
+
+State must not be endlessly persisted, so when =divine--continue= is
+=nil= in the =post-command-hook=, all state variables are set back to
+=nil= and the value of =prefix-arg= isn't saved back.
+
+*** Consuming state
+:PROPERTIES:
+:nonode:   t
+:END:
+
+Because a Divine operator can execute two functions that may consume
+state, the Divine state accessors /consume/ the resource they
+return. For example, =divine-numeric-argument= returns the value of
+the numeric argument, then drops it, so further calls will return nil.
+
+By convention, accessors have an =&optional noconsume= argument for,
+eg, conditions on the presence of the argument before actually
+consuming it.  Some, like the numeric argument, also provide accessors
+macros that makes common processing easy.
+
+*** Creating and registering new state variables
+:PROPERTIES:
+:nonode:   t
+:END:
+
+In implementing your own Divine-based commands, you may want to add
+new state parameters. To do so, you need to create a function that
+will reset those variables to a base value, and add this function
+to =divine-clear-state-functions=.
+
+#+call: describe(what='divine-clear-state-functions)
+
+** Operators and the pending operator state
+:PROPERTIES:
+:custom_id: core-operators
+:END:
+
+In Divine, an *operator* is an interactive function, acting on a
+region.
+
+When an operator is called (eg, by pressing =k= for =divine-kill=), it
+first determines if it should run immediately.  This is done by
+calling =divine-run-operator-p=.  At this point, this function will
+only return non-nil if there's an active, non-empty region.  If this
+is the case, the operator runs immediately between
+=(region-beginning)= and =(region-end)=.
+
+Otherwise, it Divine isn't already in pending operator state, it
+enters it. The operator name is stored in the variable
+=divine--pending-operator=, and state is persisted.
+
+If Divine is already in pending operator state, then two situations may
+arise:
+
+  1. The same operator is already pending, in which case it is
+     executed on the default object, as defined by the
+     =divine-defoperator= macro.
+  2. A different operator is pending, and what happens then is
+     determined by the =divine-operator-conflict-method= variable,
+     which see.
+
+The operator pending state is terminated by =divine-abort= or by the
+next motion command.
+
+*** Defining operators
+:PROPERTIES:
+:nonode:   t
+:END:
+
+Operators can be defined either from scratch, with the
+=divine-defoperator= macro:
+
+#+CALL: describe(what='divine-defoperator)
+
+Or they can be defined by wrapping an existing action:
+
+#+CALL: describe(what='divine-wrap-operator)
+
+** Operator pending mode
+
+  #+CALL: describe(what='divine-pre-command-hook)
+
+
 
 ** Mode switching and transient modes
 
 ** Scopes internals
+:PROPERTIES:
+:custom_id: core-scopes
+:END:
 
-The standard scope modifiers =around= and =inside= are not part of the
-core.  All the core provides is a scope definition macro,
-=divine-defscope=.
 
-#+CALL: describe(func='divine-defscope)
+The standard scope modifiers =around= and =inside= are not part of the core.  All the core provides is a scope definition macro, =divine-defscope=.
+
+#+CALL: describe(what='divine-defscope)
 
 ** Key binding interface internals
 
@@ -553,4 +784,5 @@ placeholders:
    etc.
 
 #  LocalWords:  Uncomment texinfo Thibault Polge thibault docstring docstrings
-#  LocalWords:  customizable
+#  LocalWords:  customizable keypress modularity statuful accessors
+#  LocalWords:  eg
