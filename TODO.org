@@ -1,3 +1,11 @@
+* TODO Simplify binding system
+
+To simplify context-dependent bindings (eg "a", which is append unless
+Divine is pending operator, in which case it's "around"), let's just
+bind everything to a single function, divine-special-binding, and
+create a macro (divine-conditional-binding or something) in which this
+function can call)
+
 * TODO Fragile activation
 
 Instead of transient activation, create a fragile activation for prefixes that uses read-char on the target mode map only once.
@@ -10,7 +18,7 @@ Instead of transient activation, create a fragile activation for prefixes that u
 * TODO Generalize scopes
 
 The implicit assumption that scopes only apply to text objects is
-limited.
+limited. (What did I mean here?)
 
 * TODO Support repeated insertion?
 
