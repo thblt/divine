@@ -1,4 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto:ital,wght@0,400;0,500;1,400;1,500&display=swap');
+
 $width: 500px;
+
+$main-font: "Open Sans";
+$fixed-font: "Roboto";
 
 $base03:    #002b36;
 $base02:    #073642;
@@ -22,6 +27,7 @@ body {
     margin: auto;
     background: $base3;
     color: $base01;
+    font-family: $main-font;
 }
 
 a {
@@ -32,4 +38,16 @@ a {
     &:visited {
         color: $violet;
     }
+}
+
+blockquote {
+    background: $base2;
+    margin: 0;
+    padding: 1ex 2ex;
+    box-shadow: inset 0 0 1ex rgba(0,0,0,.1);
+
+}
+
+pre, code, .lisp {
+    font-family: $fixed-font, monospace;
 }
