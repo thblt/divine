@@ -30,6 +30,7 @@ interfaces from scratch.
     <ul>
     <li><a href="divine.html">HTML, all in one page</a></li>
     <li><a href="index.html">HTML, one page per section</a></li>
+    <li>It is always available as an info page from inside your Emacs: eval <code>(info "(divine)")</code></li></ul>
 @end html
 #+end_export
 
@@ -50,26 +51,27 @@ This manual is for Divine version call_version().
 #+END_QUOTE
 
 #+NAME: init
-#+begin_src emacs-lisp :exports code :results silent
-    ;; Redefine the Key: list item style
-        (defun org-texinfo+key-item (item contents _info)
-          (concat (org-texinfo+maybe-begin-list item 'table)
-                  (let ((head (match-string 2 contents))
-                        (body (substring contents (match-end 0))))
-                    (if (string-match ", " head)
-                        (let ((key (substring head 0 (match-beginning 0)))
-                              (cmd (substring head (match-end 0))))
-                          (format "\
+#+begin_src emacs-lisp :exports none :results silent
+  ';; Redefine the Key: list item style
+  (defun org-texinfo+key-item (item contents _info)
+    (concat (org-texinfo+maybe-begin-list item 'table)
+            (let ((head (match-string 2 contents))
+                  (body (substring contents (match-end 0))))
+              (if (string-match ", " head)
+                  (let ((key (substring head 0 (match-beginning 0)))
+                        (cmd (substring head (match-end 0))))
+                    (format "\
         @kindex %s
         @cindex %s
         @item @kbd{%s} @tie{}@tie{}@tie{}@tie{}%s
         %s" key cmd key cmd body))
-                      (error "Bad Key item %s" head)))))
+                (error "Bad Key item %s" head)))))
+  ""
 #+end_src
 
 #+NAME: version
 #+begin_src emacs-lisp :exports none :results raw
-  (let ((gitrev (org-trim (shell-command-to-string "git describe"))))
+  (let ((gitrev (org-trim (shell-command-to-string "git describe --always"))))
     (if (string= (substring gitrev 1) (divine-version))
         (divine-version)
       (format "%s (git %s)" (divine-version) gitrev)))
@@ -121,7 +123,7 @@ Divine is a lightweight and extensible modal interface for Emacs, with
 support for Vi-like text objects, but designed to integrate as
 naturally as possible with plain Emacs.
 
-The first visible nchange Divine brings is the introduction of a
+The first visible change Divine brings is the introduction of a
 so-called “normal” mode, where letter keys don't insert the
 corresponding letters into the buffer, but run commands.  But the most
 fundamental change is the decoupling of operators and text objects, so
@@ -744,21 +746,58 @@ Or they can be defined by wrapping an existing action:
 
 #+CALL: describe(what='divine-wrap-operator)
 
-** Operator pending mode
+** Motions and objects
 
-  #+CALL: describe(what='divine-pre-command-hook)
+Unlike operators, commands that move the point and/or the mark need
+not be aware of Divine's state, and thus can almost be regular Emacs
+commands. Those commands come in two flavors: *motions* and *objects*.
 
+ - *Motions* are commands that move the point, and only the point.
+ - *Objects* are commands that act on /both/ the point and the
+   mark. Some objects are *special*.
 
+Notice, though, that the same command can be a motion /and/ an object,
+depending on context. In the standard Divine command set, scope
+modifiers turn regular motions into objects.
 
-** Mode switching and transient modes
+*** Motions
+
+Motions are boring. They move the point.
+
+*** Objects
+
+Objects are not boring, because they set both the point and the mark,
+creating a region.  In the Divine command set, most objects are
+motions called with a scope modifier, and in the Divine core, the
+=divine-defobject= macro actually assumes that scope modifiers exist,
+and that they're are two of them. This is not a strong requirement:
+you don't need to use that macro to use Divine, and you can implement
+motions the way you see fit.
+
+#+call: describe(what='divine-defobject)
+
+*** Special objects
+
+You may want sometimes to work on objects more complex than just
+ranges of text. It can be useful, for instance, to have a
+"parenthesized text" object that use the change function to change the
+delimiters instead of just the contents.  Special objects do exactly
+that: they replace the pending operator just before it runs, passing
+it extra state as needed, to make something, well, special.
+
+To implement a special object manually, call
+=divine-swap-pending-operator= before returning.
+
+#+call: describe(what='divine-swap-pending-operator)
 
 ** Scopes internals
 :PROPERTIES:
 :custom_id: core-scopes
 :END:
 
-
-The standard scope modifiers =around= and =inside= are not part of the core.  All the core provides is a scope definition macro, =divine-defscope=.
+The standard scope modifiers =around= and =inside= are not part of the
+core.  All the core provides is a scope definition macro,
+=divine-defscope=.
 
 #+CALL: describe(what='divine-defscope)
 
@@ -785,4 +824,4 @@ placeholders:
 
 #  LocalWords:  Uncomment texinfo Thibault Polge thibault docstring docstrings
 #  LocalWords:  customizable keypress modularity statuful accessors
-#  LocalWords:  eg
+#  LocalWords:  eg rewrap

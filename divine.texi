@@ -36,9 +36,10 @@ interfaces from scratch.
     <ul>
     <li><a href="divine.html">HTML, all in one page</a></li>
     <li><a href="index.html">HTML, one page per section</a></li>
+    <li>It is always available as an info page from inside your Emacs: eval <code>(info "(divine)")</code></li></ul>
 @end html
 
-This manual is for Divine version 0.0 (git fatal: aucun nom trouvé, impossible de décrire quoi que ce soit.).
+This manual is for Divine version 0.0 (git d385092).
 
 @quotation
 Copyright @copyright{} 2020 Thibault Polge <thibault@@thb.lt>
@@ -54,27 +55,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE@.  See the GNU
 General Public License for more details.
 
 @end quotation
-
-@lisp
-;; Redefine the Key: list item style
-    (defun org-texinfo+key-item (item contents _info)
-      (concat (org-texinfo+maybe-begin-list item 'table)
-              (let ((head (match-string 2 contents))
-                    (body (substring contents (match-end 0))))
-                (if (string-match ", " head)
-                    (let ((key (substring head 0 (match-beginning 0)))
-                          (cmd (substring head (match-end 0))))
-                      (format "\
-    @@kindex %s
-    @@cindex %s
-    @@item @@kbd@{%s@} @@tie@{@}@@tie@{@}@@tie@{@}@@tie@{@}%s
-    %s" key cmd key cmd body))
-                  (error "Bad Key item %s" head)))))
-@end lisp
-
-@example
-org-texinfo+key-item
-@end example
 @end ifnottex
 
 @menu
@@ -137,10 +117,15 @@ The core Divine framework
 * Activating modes::
 * State and keeping state::
 * Operators and the pending operator state::
-* Operator pending mode::
-* Mode switching and transient modes::
+* Motions and objects::
 * Scopes internals::
 * Key binding interface internals::
+
+Motions and objects
+
+* Motions::
+* Objects::
+* Special objects::
 
 @end detailmenu
 @end menu
@@ -154,7 +139,7 @@ Divine is a lightweight and extensible modal interface for Emacs, with
 support for Vi-like text objects, but designed to integrate as
 naturally as possible with plain Emacs.
 
-The first visible nchange Divine brings is the introduction of a
+The first visible change Divine brings is the introduction of a
 so-called “normal” mode, where letter keys don't insert the
 corresponding letters into the buffer, but run commands.  But the most
 fundamental change is the decoupling of operators and text objects, so
@@ -274,59 +259,59 @@ with @ref{Operators} to determine the region they operate on.
 @unnumberedsubsubsec Basic motion
 
 @table @asis
-    @kindex b
-    @cindex COUNT word(s) forward!
-    @item @kbd{b} @tie{}@tie{}@tie{}@tie{}COUNT word(s) forward!
-    @kindex f
-    @cindex COUNT word(s) backward.
-    @item @kbd{f} @tie{}@tie{}@tie{}@tie{}COUNT word(s) backward.
-    @kindex B
-    @cindex COUNT words(s) forward, in @code{superword-mode}.
-    @item @kbd{B} @tie{}@tie{}@tie{}@tie{}COUNT words(s) forward, in @code{superword-mode}.
-    @kindex F
-    @cindex COUNT words(s) backward, in @code{superword-mode}.
-    @item @kbd{F} @tie{}@tie{}@tie{}@tie{}COUNT words(s) backward, in @code{superword-mode}.
-    @kindex C-B
-    @cindex COUNT characters(s) forward.
-    @item @kbd{C-B} @tie{}@tie{}@tie{}@tie{}COUNT characters(s) forward.
-    @kindex C-F
-    @cindex COUNT characters(s) backward.
-    @item @kbd{C-F} @tie{}@tie{}@tie{}@tie{}COUNT characters(s) backward.
-    @kindex p
-    @cindex COUNT line(s) forward.
-    @item @kbd{p} @tie{}@tie{}@tie{}@tie{}COUNT line(s) forward.
-    @kindex n
-    @cindex COUNT line(s) backward.
-    @item @kbd{n} @tie{}@tie{}@tie{}@tie{}COUNT line(s) backward.
-    @kindex p
-    @cindex COUNT paragraphs(s) forward.
-    @item @kbd{p} @tie{}@tie{}@tie{}@tie{}COUNT paragraphs(s) forward.
-    @kindex n
-    @cindex COUNT paragraphs(s) backward.
-    @item @kbd{n} @tie{}@tie{}@tie{}@tie{}COUNT paragraphs(s) backward.
-    @kindex a
-    @cindex to the first non last character of current line.
-    @item @kbd{a} @tie{}@tie{}@tie{}@tie{}to the first non last character of current line.
-    @kindex e
-    @cindex to the first non blank character of current line.
-    @item @kbd{e} @tie{}@tie{}@tie{}@tie{}to the first non blank character of current line.
+@kindex b
+@cindex COUNT word(s) forward!
+@item @kbd{b} @tie{}@tie{}@tie{}@tie{}(@code{COUNT word(s) forward!})
+@kindex f
+@cindex COUNT word(s) backward.
+@item @kbd{f} @tie{}@tie{}@tie{}@tie{}(@code{COUNT word(s) backward.})
+@kindex B
+@cindex COUNT words(s) forward, in @code{superword-mode}.
+@item @kbd{B} @tie{}@tie{}@tie{}@tie{}(@code{COUNT words(s) forward, in @code{superword-mode}.})
+@kindex F
+@cindex COUNT words(s) backward, in @code{superword-mode}.
+@item @kbd{F} @tie{}@tie{}@tie{}@tie{}(@code{COUNT words(s) backward, in @code{superword-mode}.})
+@kindex C-B
+@cindex COUNT characters(s) forward.
+@item @kbd{C-B} @tie{}@tie{}@tie{}@tie{}(@code{COUNT characters(s) forward.})
+@kindex C-F
+@cindex COUNT characters(s) backward.
+@item @kbd{C-F} @tie{}@tie{}@tie{}@tie{}(@code{COUNT characters(s) backward.})
+@kindex p
+@cindex COUNT line(s) forward.
+@item @kbd{p} @tie{}@tie{}@tie{}@tie{}(@code{COUNT line(s) forward.})
+@kindex n
+@cindex COUNT line(s) backward.
+@item @kbd{n} @tie{}@tie{}@tie{}@tie{}(@code{COUNT line(s) backward.})
+@kindex p
+@cindex COUNT paragraphs(s) forward.
+@item @kbd{p} @tie{}@tie{}@tie{}@tie{}(@code{COUNT paragraphs(s) forward.})
+@kindex n
+@cindex COUNT paragraphs(s) backward.
+@item @kbd{n} @tie{}@tie{}@tie{}@tie{}(@code{COUNT paragraphs(s) backward.})
+@kindex a
+@cindex to the first non last character of current line.
+@item @kbd{a} @tie{}@tie{}@tie{}@tie{}(@code{to the first non last character of current line.})
+@kindex e
+@cindex to the first non blank character of current line.
+@item @kbd{e} @tie{}@tie{}@tie{}@tie{}(@code{to the first non blank character of current line.})
 @end table
 
 @unnumberedsubsubsec Moving by searching
 
 @table @asis
-    @kindex t
-    @cindex Before COUNTh occurrence of CHAR forward (after if SCOPE).
-    @item @kbd{t} @tie{}@tie{}@tie{}@tie{}Before COUNTh occurrence of CHAR forward (after if SCOPE).
-    @kindex T
-    @cindex Before COUNTh occurrence of CHAR backward (after if SCOPE).
-    @item @kbd{T} @tie{}@tie{}@tie{}@tie{}Before COUNTh occurrence of CHAR backward (after if SCOPE).
-    @kindex s
-    @cindex isearch forward.
-    @item @kbd{s} @tie{}@tie{}@tie{}@tie{}isearch forward.
-    @kindex S
-    @cindex isearch backward.
-    @item @kbd{S} @tie{}@tie{}@tie{}@tie{}isearch backward.
+@kindex t
+@cindex Before COUNTh occurrence of CHAR forward (after if SCOPE).
+@item @kbd{t} @tie{}@tie{}@tie{}@tie{}(@code{Before COUNTh occurrence of CHAR forward (after if SCOPE).})
+@kindex T
+@cindex Before COUNTh occurrence of CHAR backward (after if SCOPE).
+@item @kbd{T} @tie{}@tie{}@tie{}@tie{}(@code{Before COUNTh occurrence of CHAR backward (after if SCOPE).})
+@kindex s
+@cindex isearch forward.
+@item @kbd{s} @tie{}@tie{}@tie{}@tie{}(@code{isearch forward.})
+@kindex S
+@cindex isearch backward.
+@item @kbd{S} @tie{}@tie{}@tie{}@tie{}(@code{isearch backward.})
 @end table
 
 @unnumberedsubsubsec Moving around balanced expressions
@@ -349,25 +334,25 @@ The first three operators' bindings can be pressed twice to operate on
 the current line.  For example, @samp{dd} kills the current line.
 
 @table @asis
-    @kindex k
-    @cindex Kill REGION* to REGISTER@.
-    @item @kbd{k} @tie{}@tie{}@tie{}@tie{}Kill REGION* to REGISTER@.
-    @kindex c
-    @cindex Kill REGION* to REGISTER, then enter insert mode.
-    @item @kbd{c} @tie{}@tie{}@tie{}@tie{}Kill REGION* to REGISTER, then enter insert mode.
-    @kindex w
-    @cindex Copy REGION* to REGISTER@.
-    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}Copy REGION* to REGISTER@.
+@kindex k
+@cindex Kill REGION* to REGISTER@.
+@item @kbd{k} @tie{}@tie{}@tie{}@tie{}(@code{Kill REGION* to REGISTER@.})
+@kindex c
+@cindex Kill REGION* to REGISTER, then enter insert mode.
+@item @kbd{c} @tie{}@tie{}@tie{}@tie{}(@code{Kill REGION* to REGISTER, then enter insert mode.})
+@kindex w
+@cindex Copy REGION* to REGISTER@.
+@item @kbd{w} @tie{}@tie{}@tie{}@tie{}(@code{Copy REGION* to REGISTER@.})
 
-    @kindex w
-    @cindex wrap REGION with DELIMITER@.
-    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}wrap REGION with DELIMITER@.
-    @kindex =
-    @cindex indent REGION@.
-    @item @kbd{=} @tie{}@tie{}@tie{}@tie{}indent REGION@.
-    @kindex SPC o
-    @cindex Sort REGION@.
-    @item @kbd{SPC o} @tie{}@tie{}@tie{}@tie{}Sort REGION@.
+@kindex w
+@cindex wrap REGION with DELIMITER@.
+@item @kbd{w} @tie{}@tie{}@tie{}@tie{}(@code{wrap REGION with DELIMITER@.})
+@kindex =
+@cindex indent REGION@.
+@item @kbd{=} @tie{}@tie{}@tie{}@tie{}(@code{indent REGION@.})
+@kindex SPC o
+@cindex Sort REGION@.
+@item @kbd{SPC o} @tie{}@tie{}@tie{}@tie{}(@code{Sort REGION@.})
 @end table
 
 @node Text objects
@@ -423,10 +408,10 @@ balanced expressions with the change and delete operator, and no
 scope.
 
 @table @asis
-    @kindex w
-    @cindex Balanced expression text object.
-    @item @kbd{w} @tie{}@tie{}@tie{}@tie{}Balanced expression text object.
-    
+@kindex w
+@cindex Balanced expression text object.
+@item @kbd{w} @tie{}@tie{}@tie{}@tie{}(@code{Balanced expression text object.})
+
 Prompt for a pair delimiter, and selects the COUNTh balanced
 expression containing the point and bounded by this delimiter.
 
@@ -452,19 +437,19 @@ In standard binding evaluation order, actions have the higher priority.
 @subsection Standard actions
 
 @table @asis
-    @kindex d
-    @cindex delete COUNT character(s) forward.
-    @item @kbd{d} @tie{}@tie{}@tie{}@tie{}delete COUNT character(s) forward.
-    @kindex r
-    @cindex replace COUNT character(s) forward with CHAR@.
-    @item @kbd{r} @tie{}@tie{}@tie{}@tie{}replace COUNT character(s) forward with CHAR@.
-    @kindex RET
-    @cindex open line after current line.
-    @item @kbd{RET} @tie{}@tie{}@tie{}@tie{}open line after current line.
-    @kindex y
-    @cindex Insert contents of REGISTER at point, or COUNTh entry in
-    @item @kbd{y} @tie{}@tie{}@tie{}@tie{}Insert contents of REGISTER at point, or COUNTh entry in
-    kill-ring.
+@kindex d
+@cindex delete COUNT character(s) forward.
+@item @kbd{d} @tie{}@tie{}@tie{}@tie{}(@code{delete COUNT character(s) forward.})
+@kindex r
+@cindex replace COUNT character(s) forward with CHAR@.
+@item @kbd{r} @tie{}@tie{}@tie{}@tie{}(@code{replace COUNT character(s) forward with CHAR@.})
+@kindex RET
+@cindex open line after current line.
+@item @kbd{RET} @tie{}@tie{}@tie{}@tie{}(@code{open line after current line.})
+@kindex y
+@cindex Insert contents of REGISTER at point, or COUNTh entry in
+@item @kbd{y} @tie{}@tie{}@tie{}@tie{}(@code{Insert contents of REGISTER at point, or COUNTh entry in})
+kill-ring.
 @end table
 
 @node Modes
@@ -636,6 +621,8 @@ Define an action NAME for Divine.
 
 An action is similar to an operator that doesn’t need a region.
 It is legal whenever an operator is, but is never pending.
+
+(fn NAME DOCSTRING &rest BODY)
 @end defmac
 
 @node Creating operators
@@ -646,8 +633,11 @@ It is legal whenever an operator is, but is never pending.
 Define a Divine operator NAME with doc DOCSTRING@.
 
 BODY is the code of the operator.  It should work on the region,
-whether it’s active or not, by reading (point) and (mark).
-Notice that the region may be empty.
+whether it’s active or not, by reading ‘(region-beginning)’
+and ‘(region-end)’.
+
+The region may be empty, if this is an issue for your command,
+wrap in ‘(unless (eq (point) (mark)) @dots{})’.
 
 Operators need not check anything about the runtime Divine state,
 although they can of course access the state variables they need
@@ -657,6 +647,10 @@ consume the state variables.  Notice that if the operator runs
 after having been pending, it will read state after the motion
 that created the region, so part of the state may have already
 been consumed.
+
+BODY will only be executed if and when the operator runs.
+
+(fn NAME DOCSTRING &rest BODY)
 @end defmac
 
 To access the prefix argument from within an operator, see
@@ -687,8 +681,7 @@ provides, and how you can write custom modal interfaces over it.
 * Activating modes::
 * State and keeping state::
 * Operators and the pending operator state::
-* Operator pending mode::
-* Mode switching and transient modes::
+* Motions and objects::
 * Scopes internals::
 * Key binding interface internals::
 @end menu
@@ -977,8 +970,11 @@ Operators can be defined either from scratch, with the
 Define a Divine operator NAME with doc DOCSTRING@.
 
 BODY is the code of the operator.  It should work on the region,
-whether it’s active or not, by reading (point) and (mark).
-Notice that the region may be empty.
+whether it’s active or not, by reading ‘(region-beginning)’
+and ‘(region-end)’.
+
+The region may be empty, if this is an issue for your command,
+wrap in ‘(unless (eq (point) (mark)) @dots{})’.
 
 Operators need not check anything about the runtime Divine state,
 although they can of course access the state variables they need
@@ -988,6 +984,10 @@ consume the state variables.  Notice that if the operator runs
 after having been pending, it will read state after the motion
 that created the region, so part of the state may have already
 been consumed.
+
+BODY will only be executed if and when the operator runs.
+
+(fn NAME DOCSTRING &rest BODY)
 @end defmac
 
 Or they can be defined by wrapping an existing action:
@@ -1001,21 +1001,128 @@ The resulting operotar is called divine-NAME@.
 (fn COMMAND &key)
 @end defmac
 
-@node Operator pending mode
-@section Operator pending mode
+@node Motions and objects
+@section Motions and objects
 
-@defvar divine-pre-command-hook
+Unlike operators, commands that move the point and/or the mark need
+not be aware of Divine's state, and thus can almost be regular Emacs
+commands. Those commands come in two flavors: @strong{motions} and @strong{objects}.
 
-nil
-@end defvar
+@itemize
+@item
+@strong{Motions} are commands that move the point, and only the point.
 
-@node Mode switching and transient modes
-@section Mode switching and transient modes
+@item
+@strong{Objects} are commands that act on @emph{both} the point and the
+mark. Some objects are @strong{special}.
+@end itemize
+
+Notice, though, that the same command can be a motion @emph{and} an object,
+depending on context. In the standard Divine command set, scope
+modifiers turn regular motions into objects.
+
+@menu
+* Motions::
+* Objects::
+* Special objects::
+@end menu
+
+@node Motions
+@subsection Motions
+
+Motions are boring. They move the point.
+
+@node Objects
+@subsection Objects
+
+Objects are not boring, because they set both the point and the mark,
+creating a region.  In the Divine command set, most objects are
+motions called with a scope modifier, and in the Divine core, the
+@samp{divine-defobject} macro actually assumes that scope modifiers exist,
+and that they're are two of them. This is not a strong requirement:
+you don't need to use that macro to use Divine, and you can implement
+motions the way you see fit.
+
+@defmac divine-defobject
+
+Define the object NAME documented with DOCSTRING@.
+
+Two functions will be created: divine-NAME-forward and
+divine-NAME-backward.  They will behave as a regular motion,
+unless the ’inside or ’around scope is activated.
+
+The object is constructed with objects passed as keyword arguments:
+
+@itemize
+@item
+FORWARD is a command that moves the point to the next object
+@end itemize
+of this motion.
+@itemize
+@item
+BACKWARD is FORWARD in reverse; if absent, forward is called
+@end itemize
+with a reversed argument.
+@itemize
+@item
+BEGINNING moves point to the beginning of the object at point.
+
+@item
+END moves point to the end of the object at point.
+
+@item
+EXTEND-BEFORE moves the point from the beginning of the object
+@end itemize
+in a way that makes sense in the context of the ’around
+modifier.  If empty, it defaults to (BACKWARD) (END).
+@itemize
+@item
+EXTEND-AFTER is the same in reverse, and defaults
+@end itemize
+to (FORWARD) (BEGINNING).
+@itemize
+@item
+SPECIAL is a function that receives the pending operator (as a
+symbol) and return another symbol that gets run as the actual
+operator.  Default is ‘identity’.
+@end itemize
+
+(fn NAME DOCSTRING &key FORWARD BACKWARD BEGINNING END (EXTEND-BEFORE 'ignore) (EXTEND-AFTER 'ignore) (SPECIAL 'identity))
+@end defmac
+
+@node Special objects
+@subsection Special objects
+
+You may want sometimes to work on objects more complex than just
+ranges of text. It can be useful, for instance, to have a
+``parenthesized text'' object that use the change function to change the
+delimiters instead of just the contents.  Special objects do exactly
+that: they replace the pending operator just before it runs, passing
+it extra state as needed, to make something, well, special.
+
+To implement a special object manually, call
+@samp{divine-swap-pending-operator} before returning.
+
+@defun divine-swap-pending-operator
+
+Replace the pending operator with an operator picked from REPL@.
+
+REPL is either a list of pair of symbols (FROM . TO), where FROM
+is the active operator, and TO its replacement, or a function
+that takes an operator symbol and returns a replacement
+operator, or nil.
+
+If no replacement is found, the currently pending operator remains.
+
+(fn REPL)
+@end defun
 
 @node Scopes internals
 @section Scopes internals
 
-The standard scope modifiers @samp{around} and @samp{inside} are not part of the core.  All the core provides is a scope definition macro, @samp{divine-defscope}.
+The standard scope modifiers @samp{around} and @samp{inside} are not part of the
+core.  All the core provides is a scope definition macro,
+@samp{divine-defscope}.
 
 @defmac divine-defscope
 
