@@ -1,9 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto:ital,wght@0,400;0,500;1,400;1,500&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=swap');
 $width: 800px;
 
 $main-font: "Open Sans";
-$fixed-font: "Roboto";
+$fixed-font: "Roboto Mono";
 
 $base03:    #002b36;
 $base02:    #073642;
@@ -50,5 +49,5 @@ blockquote {
 }
 
 pre, code, .lisp {
-    font-family: $fixed-font, monospace;
+    font-family: $fixed-font;
 }
