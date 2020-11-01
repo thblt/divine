@@ -136,6 +136,7 @@ call divine-kill, it kills the region at point, if there's one; if
 there isn't, it sets the mark at the point and waits for the next
 motion command to delete all text between point and mark.
 
+
 * Installation
 
 ** Manual installation
@@ -148,6 +149,12 @@ this manual to texinfo by running:
   install-info divine.info --dir=dir
 #+end_src
 
+or just run
+
+#+begin_src shell
+  make
+#+end_src
+
 Then load Divine from Emacs
 
 #+begin_src emacs-lisp
@@ -155,49 +162,13 @@ Then load Divine from Emacs
   (divine-global-mode)
 #+end_src
 
-** DONE Install from Melpa
+** TODO Install from Melpa
 
 Divine is not yet available from Melpa. When it will be,
 
 ** TODO Install from Git, with Borg
 
 ** TODO Install from Git, with Straight
-
-* A Tour of Divine
-:PROPERTIES:
-:custom_id: tour
-:END:
-This chapter is an informal introduction to Divine.
-
-** Starting Divine
-:PROPERTIES:
-:nonode: t
-:END:
-
-To get started, open any buffer you like and make sure you're in
-normal mode by running =M-x divine-normal-mode RET=. (Divine tries to
-be smart about the mode it starts in, so some buffers may start in
-insert mode)
-
-The minor mode lighter shows the active state.  It should display
-=Divine<N>=.
-
-** Basic motion
-:PROPERTIES:
-:nonode: t
-:END:
-
-Basic motion is very close to ordinary Emacs commands: =F= will go
-forward one character, =B= backward.  =f= and =b= will move forward
-and backward a word, respectively.
-
-With =p= and =n=, you move to the previous
-and the next visible line, respectively.  =a= and =e= go to the
-beginning and end of the current line, =A= end =E= move through
-sentences.
-
-=isearch= is on =s=, =r= for backwards.  =S= and =R= activate regexp
-search.
 
 
 * Editing with Divine
@@ -206,8 +177,7 @@ search.
 :END:
 
 This section is a complete presentation of the Divine editing
-features.  A less formal, but less complete, presentation can be found
-in [[#tour]], which is a recommended read.
+features.
 
 People who wish to build their own modal interface over the Divine
 core may skip most of this chapter, but should nonetheless read the

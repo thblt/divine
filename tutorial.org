@@ -1,0 +1,24 @@
+#
+# WARNING: Do to the tutorial, run `M-x divine-tutorial`.  This
+# document is only useful for contributors who want to modify the
+# tutorial.
+#
+
+#+TITLE: The Divine tutorial
+#+AUTHOR: Thibault Polge <thibault@thb.lt>
+#+OPTIONS: title:nil author:nil date:nil toc:nil ':t
+
+#+begin_export ascii
+┌────────────────────────────────────────────────────────┐
+│ ████████▄   ▄█   ▄█    █▄   ▄█  ███▄▄▄▄      ▄████████ │
+│ ███   ▀███ ███  ███    ███ ███  ███▀▀▀██▄   ███    ███ │
+│ ███    ███ ███▌ ███    ███ ███▌ ███   ███   ███    █▀  │
+│ ███    ███ ███▌ ███    ███ ███▌ ███   ███  ▄███▄▄▄     │
+│ ███    ███ ███▌ ███    ███ ███▌ ███   ███ ▀▀███▀▀▀     │
+│ ███    ███ ███  ███    ███ ███  ███   ███   ███    █▄  │
+│ ███   ▄███ ███  ███    ███ ███  ███   ███   ███    ███ │
+│ ████████▀  █▀    ▀██████▀  █▀    ▀█   █▀    ██████████ │
+└──────────────────┤ T U T O R I A L ├───────────────────┘
+#+end_export
+
+*
