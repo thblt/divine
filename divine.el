@@ -78,7 +78,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (setq-local blink-cursor-blinks 0
               blink-cursor-delay 0)
 
-  (add-hook 'divine-pending-operator-hook 'divine--toggle-pending-operator-indicator)
+  (add-hook 'divine-pending-operator-hook 'divine-toggle-pending-operator-indicator)
 
   (with-current-buffer (or buffer (current-buffer))
     (if-let ((func (cl-some 'divine--start-eval-rule divine-initial-mode-rules)))
@@ -86,12 +86,38 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
       (error "Traversal of `divine-initial-mode-rules' ended without an initial mode."))))
 
 (defun divine-abort ()
-  "Abort what needs to be aborted."
+  "Do the first of these things whose condition holds:
+
+ - If region is active: deactivate the mark.
+ - If a transient mode is activated, return to the caller mode. @FIXME Unimplemented.
+ - If an operator is pending: unset it, and clear state.
+ - If a non-normal mode is activated, return to normal mode.
+ - Othewise, clear state."
   (interactive)
   (cond ((region-active-p) (deactivate-mark))
-        ((divine-abort-pending-operator))
-        ((not divine-normal-mode) (divine-normal-mode t)))
-  (divine--finalize)) ; @TODO Check for transient mode.
+        ((divine-pending-operator-p) (divine-operator-abort))
+        ;; @FIXME Implement transient mode deactivation.
+        ((not divine-normal-mode) (divine-normal-mode))
+        (t (divine-clear-state))))
+
+;;; Utility for normal modes
+
+(defun divine-init-normal-keymap (mode)
+  (define-key mode [remap self-insert-command] 'undefined)
+  (define-key mode "0" 'divine-zero)
+  (define-key mode "0" 'beginning-of-line)
+  (define-key mode "1" 'digit-argument)
+  (define-key mode "2" 'digit-argument)
+  (define-key mode "3" 'digit-argument)
+  (define-key mode "4" 'digit-argument)
+  (define-key mode "5" 'digit-argument)
+  (define-key mode "6" 'digit-argument)
+  (define-key mode "7" 'digit-argument)
+  (define-key mode "8" 'digit-argument)
+  (define-key mode "9" 'digit-argument)
+  (define-key mode "-" 'negative-argument)
+  (define-key mode "\"" 'divine-select-register)
+  (define-key mode [remap keyboard-quit] 'divine-abort))
 
 ;;; Normal mode
 
@@ -99,109 +125,91 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "Normal mode for Divine."
   :cursor 'box)
 
-(defun divine-init-normal-keymap (mode)
-  (divine-define-key mode [remap self-insert] 'divine-fail)
-  (divine-define-key mode "0" 'divine-zero :state 'numeric-argument)
-  (divine-define-key mode "0" 'beginning-of-line)
-  (divine-define-key mode "1" 'digit-argument)
-  (divine-define-key mode "2" 'digit-argument)
-  (divine-define-key mode "3" 'digit-argument)
-  (divine-define-key mode "4" 'digit-argument)
-  (divine-define-key mode "5" 'digit-argument)
-  (divine-define-key mode "6" 'digit-argument)
-  (divine-define-key mode "7" 'digit-argument)
-  (divine-define-key mode "8" 'digit-argument)
-  (divine-define-key mode "9" 'digit-argument)
-  (divine-define-key mode "-" 'negative-argument)
-  (divine-define-key mode "\"" 'divine-select-register)
-  (divine-define-key mode [remap keyboard-quit] 'divine-abort))
-
-;;;; Utilities
-
 ;;;; Default keymap
 
-(divine-define-key 'normal "o" 'divine-open-line)
-(divine-define-key 'normal "o" 'exchange-point-and-mark :state 'region-active)
+(define-key divine-normal-mode-map "o"
+  (defun divine-o ()
+    "Exchange point and mark if region is active and non-empty, otherwise open line after point."
+    (if (and (region-active-p)
+             (not (eq (point) (mark))))
+        (exchange-point-and-mark)
+      (divine-open-line))))
 
-(divine-init-normal-keymap 'normal)
+(divine-init-normal-keymap divine-normal-mode-map)
 ;; Eat characters.
 ;; Character motion
-(divine-define-key 'normal "B" 'backward-char)
-(divine-define-key 'normal "<left>" 'left-char)
-(divine-define-key 'normal "F" 'forward-char)
-(divine-define-key 'normal "<right>" 'right-char)
-(divine-define-key 'normal "b" 'divine-word-backward)
-(divine-define-key 'normal "f" 'divine-word-forward)
+(define-key divine-normal-mode-map (kbd "B") 'backward-char)
+(define-key divine-normal-mode-map (kbd "<left>") 'left-char)
+(define-key divine-normal-mode-map (kbd "F") 'forward-char)
+(define-key divine-normal-mode-map (kbd "<right>") 'right-char)
+(define-key divine-normal-mode-map (kbd "b") 'divine-word-backward)
+(define-key divine-normal-mode-map (kbd "f") 'divine-word-forward)
 ;; (define-key divine-normal-mode-map (kbd "<spc>") 'activate-mark)
 ;; Lines
-(divine-define-key 'normal "^" 'divine-line-beginning)
+(define-key divine-normal-mode-map (kbd "^") 'divine-line-beginning)
 ;;(divine-define-key 'normal "a" 'divine-scope-around-select :state 'accept-scope)
-(divine-define-key 'normal "$" 'end-of-line)
-(divine-define-key 'normal "p" 'divine-line-backward)
-(divine-define-key 'normal "<up>" 'divine-line-backward)
-(divine-define-key 'normal "<down>" 'divine-line-forward)
-(divine-define-key 'normal "n" 'divine-line-forward)
+(define-key divine-normal-mode-map (kbd "$") 'end-of-line)
+(define-key divine-normal-mode-map (kbd "p") 'previous-line)
+(define-key divine-normal-mode-map (kbd "<up>") 'divine-line-backward)
+(define-key divine-normal-mode-map (kbd "<down>") 'divine-line-forward)
+(define-key divine-normal-mode-map (kbd "n") 'divine-line-forward)
 ;; Paragraph motion
-(divine-define-key 'normal "P" 'backward-paragraph)
-(divine-define-key 'normal "N" 'forward-paragraph)
+(define-key divine-normal-mode-map (kbd "P") 'backward-paragraph)
+(define-key divine-normal-mode-map (kbd "N") 'forward-paragraph)
 ;; Buffer motion
-(divine-define-key 'normal "g" 'divine-goto-line :state 'numeric-argument)
-(divine-define-key 'normal "g" 'divine-transient-g-mode)
-(divine-define-key 'normal "G" 'divine-end-of-buffer)
+;; FIXME (define-key divine-normal-mode-map (kbd "g") 'divine-goto-line :state 'numeric-argument)
+(define-key divine-normal-mode-map (kbd "g") 'divine-transient-g-mode)
+(define-key divine-normal-mode-map (kbd "G") 'divine-end-of-buffer)
 ;; Other basic motion
-(divine-define-key 'normal "a" 'backward-sentence)
-(divine-define-key 'normal "e" 'forward-sentence)
+(define-key divine-normal-mode-map (kbd "a") 'backward-sentence)
+(define-key divine-normal-mode-map (kbd "e") 'forward-sentence)
 ;; Search
-(divine-define-key 'normal "t" 'divine-find-char-forward-before)
-(divine-define-key 'normal "T" 'divine-find-char-backward-before)
-(divine-define-key 'normal "r" 'divine-find-char-forward-after)
-(divine-define-key 'normal "R" 'divine-find-char-backward-after)
-(divine-define-key 'normal "s" 'isearch-forward)
+(define-key divine-normal-mode-map (kbd "t") 'divine-find-char-forward-before)
+(define-key divine-normal-mode-map (kbd "T") 'divine-find-char-backward-before)
+(define-key divine-normal-mode-map (kbd "r") 'divine-find-char-forward-after)
+(define-key divine-normal-mode-map (kbd "R") 'divine-find-char-backward-after)
+(define-key divine-normal-mode-map (kbd "s") 'isearch-forward)
 ;; (divine-define-key 'normal "S" 'isearch-forward-regexp)
-(divine-define-key 'normal "S" 'isearch-backward)
-; (divine-define-key 'normal "R" 'isearch-backward-regexp)
+(define-key divine-normal-mode-map (kbd "S") 'isearch-backward)
+                                        ; (divine-define-key 'normal "R" 'isearch-backward-regexp)
 ;; Insertion
-(divine-define-key 'normal "RET" 'divine-line-open-forward)
-(divine-define-key 'normal "M-RET" 'divine-line-open-backward)
-(divine-define-key 'normal "c" 'divine-change)
-(divine-define-key 'normal "c" 'divine-line-contents :state 'repeated-operator)
-(divine-define-key 'normal "i" 'divine-insert-mode :state 'base)
-(divine-define-key 'normal "i" 'divine-scope-step)
+(define-key divine-normal-mode-map (kbd "RET") 'divine-line-open-forward)
+(define-key divine-normal-mode-map (kbd "M-RET") 'divine-line-open-backward)
+(define-key divine-normal-mode-map (kbd "c") 'divine-change)
+(define-key divine-normal-mode-map (kbd "i") 'divine-insert-mode)
+;; @FIXME (define-key divine-normal-mode-map (kbd "i") 'divine-scope-step)
 ;; Killing and yanking text
-(divine-define-key 'normal "k" 'divine-kill)
-(divine-define-key 'normal "k" 'divine-whole-line :state 'repeated-operator)
-(divine-define-key 'normal "d" 'delete-char)
-(divine-define-key 'normal "w" 'divine-text-save)
-(divine-define-key 'normal "w" 'divine-whole-line :state 'repeated-operator)
-(divine-define-key 'normal "y" 'divine-yank)
-(divine-define-key 'normal "r" 'divine-char-replace)
+(define-key divine-normal-mode-map (kbd "k") 'divine-kill)
+(define-key divine-normal-mode-map (kbd "d") 'delete-char)
+(define-key divine-normal-mode-map (kbd "w") 'divine-text-save)
+(define-key divine-normal-mode-map (kbd "y") 'divine-yank)
+(define-key divine-normal-mode-map (kbd "r") 'divine-char-replace)
 ;; Complex manipulations
-(divine-define-key 'normal "j" 'divine-line-join)
-(divine-define-key 'normal "=" 'divine-indent-region)
-(divine-define-key 'normal "SPC w" 'divine-wrap)
-;; History
-(divine-define-key 'normal "u" 'undo)
-(divine-define-key 'normal "U" 'redo)
+(define-key divine-normal-mode-map (kbd "j") 'divine-line-join)
+(define-key divine-normal-mode-map (kbd "=") 'divine-indent-region)
+(define-key divine-normal-mode-map (kbd "SPC w") 'divine-wrap)
+(define-key divine-normal-mode-map (kbd "/") 'undo)
+;; (define-key divine-normal-mode-map (kbd "U") 'redo)
 ;; Switch to Sexp
-(divine-define-key 'normal "l" 'divine-transient-sexp-mode)
-(divine-define-key 'normal "L" 'divine-sexp-mode)
+(define-key divine-normal-mode-map (kbd "l") 'divine-transient-sexp-mode)
+(define-key divine-normal-mode-map (kbd "L") 'divine-sexp-mode)
 ;; Folds and Outline
-(divine-define-key 'normal "z" 'divine-transient-folds-mode)
-(divine-define-key 'normal "Z" 'divine-folds-mode)
+(define-key divine-normal-mode-map (kbd "z") 'divine-transient-folds-mode)
+(define-key divine-normal-mode-map (kbd "Z") 'divine-folds-mode)
 ;; Region editing
-(divine-define-key 'normal "m" 'divine-mark-toggle)
-(divine-define-key 'normal "M" 'divine-mark-rectangle-toggle)
+(define-key divine-normal-mode-map (kbd "m") 'divine-mark-toggle)
+(define-key divine-normal-mode-map (kbd "M") 'divine-mark-rectangle-toggle)
 ;; Macros
-(divine-define-key 'normal "Q" 'divine-macro-start)
-(divine-define-key 'normal "Q" 'divine-macro-end :mode 'defining-kbd-macro)
-(divine-define-key 'normal "q" 'divine-macro-call)
-(divine-define-key 'normal "M-i" 'counsel-imenu)
-;; Leader-ish bindings
-(divine-define-key 'normal "SPC s" 'save-buffer)
-(divine-define-key 'normal "SPC o" 'divine-sort-lines)
-(divine-define-key 'normal "SPC s" 'save-buffer)
-(divine-define-key 'normal "SPC p p" 'projectile-switch-project)
-(divine-define-key 'normal "SPC p f" 'projectile-find-file)
+(define-key divine-normal-mode-map (kbd "Q") 'divine-macro-start)
+;; @FIXME (define-key divine-normal-mode-map (kbd "Q") 'divine-macro-end :mode 'defining-kbd-macro)
+(define-key divine-normal-mode-map (kbd "q") 'divine-macro-call)
+(define-key divine-normal-mode-map (kbd "M-i") 'counsel-imenu)
+;ish bindings
+(define-key divine-normal-mode-map (kbd "SPC s") 'save-buffer)
+(define-key divine-normal-mode-map (kbd "SPC o") 'divine-sort-lines)
+(define-key divine-normal-mode-map (kbd "SPC s") 'save-buffer)
+(define-key divine-normal-mode-map (kbd "SPC p p") 'projectile-switch-project)
+(define-key divine-normal-mode-map (kbd "SPC p f") 'projectile-find-file)
 
 ;;; “g” mode
 
@@ -209,35 +217,38 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "A purely transient mode for the `g' command."
   :cursor 'hollow)
 
-(divine-init-normal-keymap 'g)
+(divine-init-normal-keymap divine-g-mode-map)
 
-(divine-define-key 'g "g" 'divine-beginning-of-buffer)
-(define-key divine-g-mode-map [t] 'divine-abort)
-(divine-define-key 'g "l" 'divine-transient-folds-mode)
+(define-key divine-g-mode-map (kbd "g") 'divine-buffer-beginning)
+(define-key divine-g-mode-map (kbd "G") 'divine-buffer-end)
+(define-key divine-g-mode-map (kbd "l") 'divine-transient-folds-mode)
 
-;;; “z” mode
+;;; folds mode (z)
 
 (divine-defmode folds
   "A mode to work on folds and outlines."
   :cursor-color "ForestGreen")
 
-(divine-init-normal-keymap 'folds)
-(divine-define-key 'folds "p" 'outline-previous-visible-heading)
-(divine-define-key 'folds "n" 'outline-next-visible-heading)
-(divine-define-key 'folds "P" 'outline-move-subtree-up)
-(divine-define-key 'folds "N" 'outline-move-subtree-down)
-(divine-define-key 'folds "f" 'outline-demote)
-(divine-define-key 'folds "b" 'outline-promote)
-(divine-define-key 'folds "r" 'outshine-narrow-to-subtree)
-(divine-define-key 'folds "c" 'outshine-cycle)
-(divine-define-key 'folds "C" 'outshine-cycle-buffer)
-(divine-define-key 'folds "o" 'outline-hide-other)
+(divine-init-normal-keymap divine-folds-mode-map)
+
+(define-key divine-folds-mode-map (kbd "p") 'outline-previous-visible-heading)
+(define-key divine-folds-mode-map (kbd "n") 'outline-next-visible-heading)
+(define-key divine-folds-mode-map (kbd "P") 'outline-move-subtree-up)
+(define-key divine-folds-mode-map (kbd "N") 'outline-move-subtree-down)
+(define-key divine-folds-mode-map (kbd "f") 'outline-demote)
+(define-key divine-folds-mode-map (kbd "b") 'outline-promote)
+(define-key divine-folds-mode-map (kbd "r") 'outshine-narrow-to-subtree)
+(define-key divine-folds-mode-map (kbd "c") 'outshine-cycle)
+(define-key divine-folds-mode-map (kbd "C") 'outshine-cycle-buffer)
+(define-key divine-folds-mode-map (kbd "o") 'outline-hide-other)
 
 ;;; Insert mode
 
 (divine-defmode insert
   "Emacs-like mode for Divine."
   :cursor 'bar)
+
+(define-key divine-insert-mode-map [remap keyboard-quit] 'divine-abort)
 
 ;;; Off mode
 
@@ -246,10 +257,6 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   :lighter "<Off>"
   :cursor 'bar)
 
-;;;; Default keymap
-
-(divine-define-key 'insert [remap keyboard-quit] 'divine-normal-mode)
-
 ;;; Sexp mode
 
 (divine-defmode sexp
@@ -257,17 +264,17 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   :cursor 'box
   :cursor-color "MediumVioletRed")
 
-(divine-init-normal-keymap 'sexp)
+(divine-init-normal-keymap divine-sexp-mode-map)
 
-(divine-define-key 'sexp "s" 'divine-wrap)
-(divine-define-key 'sexp "f" 'sp-forward-sexp)
-(divine-define-key 'sexp "b" 'sp-backward-sexp)
-(divine-define-key 'sexp "n" 'sp-up-sexp)
-(divine-define-key 'sexp "p" 'sp-down-sexp)
-(divine-define-key 'sexp "N" 'sp-backward-up-sexp)
-(divine-define-key 'sexp "P" 'sp-backward-down-sexp)
-(divine-define-key 'sexp "a" 'sp-end-of-previous-sexp)
-(divine-define-key 'sexp "e" 'sp-beginning-of-next-sexp)
+(define-key divine-sexp-mode-map (kbd "s") 'divine-wrap)
+(define-key divine-sexp-mode-map (kbd "f") 'sp-forward-sexp)
+(define-key divine-sexp-mode-map (kbd "b") 'sp-backward-sexp)
+(define-key divine-sexp-mode-map (kbd "n") 'sp-up-sexp)
+(define-key divine-sexp-mode-map (kbd "p") 'sp-down-sexp)
+(define-key divine-sexp-mode-map (kbd "N") 'sp-backward-up-sexp)
+(define-key divine-sexp-mode-map (kbd "P") 'sp-backward-down-sexp)
+(define-key divine-sexp-mode-map (kbd "a") 'sp-end-of-previous-sexp)
+(define-key divine-sexp-mode-map (kbd "e") 'sp-beginning-of-next-sexp)
 
 ;;; Conclusion
 

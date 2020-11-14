@@ -1,3 +1,11 @@
+
+* TODO Normal mode for major/minor modes
+
+It's probably extremely useful to be able to create mode-specific
+normal bindings.  A simple solution would be to create a set
+`divine-normal-MODE-mode-map` that modes toggle.  See how selected
+does it.
+
 * TODO Simplify binding system
 
 To simplify context-dependent bindings (eg "a", which is append unless

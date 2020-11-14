@@ -46,6 +46,9 @@
   prefixes."
   :type '(alist :key-type character :value-type character))
 
+(defcustom divine-insert-mode-command 'divine-insert-mode
+  "Function to enter insert mode.")
+
 ;;; Variables
 
 (defvar divine--macro-register nil
@@ -144,16 +147,17 @@ If DELETE, region is also deleted from buffer."
     (delete-region (region-beginning) (region-end))))
 
 (divine-defoperator divine-kill
-  "Kill REGION into REGISTER or kill-ring."
+  "Kill REGION into REGISTER."
   (divine--text-to-register-helper t))
 
 (divine-defoperator divine-change
   "Kill REGION, then enter insert mode."
   (divine--text-to-register-helper t)
-  (divine-commands-switch-to-insert-mode))
+  (funcall divine-insert-mode-command))
 
-(divine-defaction divine-char-replace
+(defun divine-char-replace ()
   "Replace char at point without leaving normal mode."
+  (interactive)
   (let ((char (char-to-string (divine-read-char))))
     (save-excursion
       (divine-dotimes
@@ -169,7 +173,7 @@ If DELETE, region is also deleted from buffer."
          (insert char)
          (when negative (backward-char)))))))
 
-(divine-defaction divine-yank
+(defun divine-yank ()
   "Yank the COUNTh entry from KILL-RING, or the contents of
   REGISTER.
 
@@ -179,6 +183,7 @@ previous line instead.
 
 If pasting from the kill-ring, this function pretends to be
 `yank' by setting `this-command', so `yank-pop' is happy."
+  (interactive)
   (divine-with-numeric-argument-and-register
    (when (string-suffix-p "\n"
                           (if register
@@ -193,13 +198,15 @@ If pasting from the kill-ring, this function pretends to be
 
 ;;; Actions
 
-(divine-defaction divine-append
+(defun divine-append ()
   "Move COUNT characters forward, then switch to insert mode."
+  (interactive)
   (forward-char (divine-numeric-argument))
   (divine-commands-switch-to-insert-mode))
 
-(divine-defaction divine-append-line
+(defun divine-append-line ()
   "Move to end of line, then switch to insert mode."
+  (interactive)
   (end-of-line)
   (divine-commands-switch-to-insert-mode))
 
@@ -210,8 +217,9 @@ If pasting from the kill-ring, this function pretends to be
 (divine-defscope around)
 (divine-defscope inside)
 
-(divine-defcommand divine-scope-step
+(defun divine-scope-step ()
   "If not SCOPE, select inside scope.  Otherwise, select around."
+  (interactive)
   (if (divine-scope-p)
       (divine-scope-around-force)
     (divine-scope-around-select)))
@@ -241,24 +249,28 @@ If pasting from the kill-ring, this function pretends to be
 
 (defun divine--find-char-helper (after)
   "Helper for divine-find-char-*[-after]"
+  (interactive)
   (divine-with-numeric-argument
    (search-forward (char-to-string (divine-read-char)) nil nil count)
    (unless (eq positive after) (forward-char minus1))))
 
 (defun divine-find-char-forward ()
   "Before the COUNTh occurence of CHAR forward, after if SCOPE."
+  (interactive)
   (divine--find-char-helper (divine-scope-flag)))
 
 (divine-reverse-command 'divine-find-char-forward)
 
 (defun divine-find-char-forward-before ()
   "Prompt for a character, then move point forward before the COUNTh occurence."
+  (interactive)
   (divine--find-char-helper nil))
 
 (divine-reverse-command 'divine-find-char-forward-before)
 
 (defun divine-find-char-forward-after ()
   "Prompt for a character, then move point forward after the COUNTh occurence."
+  (interactive)
   (divine--find-char-helper t))
 
 (divine-reverse-command 'divine-find-char-forward-after)
@@ -278,18 +290,19 @@ If pasting from the kill-ring, this function pretends to be
 ;;;; Folds and outline
 
 
-
 ;;;; Balanced expressions (Lisp-mode)
 
 ;;;; Join lines?
 
-(divine-defaction divine-line-join
+(defun divine-line-join ()
   "Join COUNT lines."
+  (interactive)
   (divine-dotimes
    (join-line positive)))
 
-(divine-defaction divine-line-open-forward
+(defun divine-line-open-forward ()
   "Open COUNT lines before point, and move the point at the first."
+  (interactive)
   (divine-with-numeric-argument
    (if positive (end-of-line)
      (beginning-of-line)
@@ -306,37 +319,44 @@ If pasting from the kill-ring, this function pretends to be
   "Save text to REGISTER or kill-ring."
   (divine--text-to-register-helper))
 
-(divine-defaction divine-point-save
+(defun divine-point-save ()
   "Save point to REGISTER or mark stack."
+  (interactive)
   (divine--text-to-register-helper))
 
 ;;;; Region editing
 
-(divine-defaction divine-mark-activate
+(defun divine-mark-activate ()
   "Activate the mark."
+  (interactive)
   (push-mark (point) t t))
 
-(divine-defaction divine-mark-deactivate
+(defun divine-mark-deactivate ()
   "Deactivate the mark."
+  (interactive)
   (deactivate-mark))
 
-(divine-defaction divine-mark-toggle
+(defun divine-mark-toggle ()
   "Toggle the mark"
+  (interactive)
   (if (region-active-p)
       (divine-mark-deactivate)
     (divine-mark-activate)))
 
-(divine-defaction divine-mark-rectangle-activate
+(defun divine-mark-rectangle-activate ()
   "Activate the rectangular mark."
+  (interactive)
   (rectangle-mark-mode t))
 
-(divine-defaction divine-mark-rectangle-deactivate
+(defun divine-mark-rectangle-deactivate ()
   "Activate the rectangular mark."
+  (interactive)
   (rectangle-mark-mode 0))
 
-(divine-defaction divine-mark-rectangle-toggle
+(defun divine-mark-rectangle-toggle ()
   "If mark is inactive, activate it in rectangle mode.  If mark
 is active, toggle rectangle mode"
+  (interactive)
   (if (region-active-p)
       (if rectangle-mark-mode
           (divine-mark-rectangle-deactivate)
@@ -347,51 +367,34 @@ is active, toggle rectangle mode"
 
 ;;; Macros
 
-(divine-defaction divine-macro-start
+(defun divine-macro-start ()
   "Begin recording macro into REGISTER."
+  (interactive)
   (assert (not defining-kbd-macro))
   (setq divine--macro-register (divine-register))
   (kmacro-start-macro nil))
 
-(divine-defaction divine-macro-end
+(defun divine-macro-end ()
   "Stop recording macro."
+  (interactive)
   (kmacro-end-macro nil)
   (when divine--macro-register
     (kmacro-to-register divine--macro-register)
     (setq divine--macro-register nil)))
 
 ;; @FIXME Support calling from register.
-(divine-defaction divine-macro-call
+(defun divine-macro-call ()
   "Execute macro from REGISTER COUNT times."
+  (interactive)
   (kmacro-call-macro (divine-numeric-argument nil) nil ))
-
-;;; Smartparens
-
-(divine-defoperator divine-wrap
-  "Prompt for character, then wrap region with it.")
 
 ;;; Hybrids
 
-(divine-defcommand divine-zero
-  "Multiply current numeric argument by 10."
-  (if (divine-numeric-argument-p)
-      (setq prefix-arg (* (divine-numeric-argument t) 10))
-    (divine-line-beginning)))
 
-(divine-defcommand divine-goto-line-or-g-mode
-  "Goto line COUNT if COUNT, otherwise enter transient g mode."
-  (if (divine-numeric-argument-p)
-      (divine-goto-line)
-    (divine-transient-g-mode)))
 
 ;;; Misc utilities
 
 (defconst divine--blank-line-regexp (rx bol (* space) eol))
-
-(defalias 'divine-commands-switch-to-insert-mode 'divine-insert-mode
-  "To use divine-commands.el as a library in a divine interface
-that doesn't provide `divine-insert-mode', override this
-alias to use your function instead.")
 
 (defun divine-read-pair (&optional prompt)
   "Like `divine-read-char', but translates the result with
