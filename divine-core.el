@@ -195,7 +195,7 @@ close enough."
              (not (eq (point) (mark))))
     (divine-operator-run-pending))
   ;; Drop or persist state
-  (if divine--continue
+  (if (or divine--continue (eq this-command 'undefined))
       (progn
         (setq current-prefix-arg prefix-arg)
         (setq divine--continue nil))
@@ -217,6 +217,9 @@ close enough."
 
 (defun divine--clear-state ()
   "Restore base state."
+  (mapc (lambda (m) (funcall m t))
+        divine--transient-stack)
+  (setq divine--transient-stack nil)
   (setq divine--ready-for-operator nil
         prefix-arg nil
         current-prefix-arg nil)
@@ -224,7 +227,7 @@ close enough."
     (divine-operator-set-pending nil)))
 
 (defun divine-quit-transient-modes ()
-  "Terminatate all transient modes."
+  "Terminate all transient modes."
   (while divine--transient-stack
     (funcall (pop divine--transient-stack) t)))
 
@@ -544,6 +547,7 @@ The following optional keyword arguments are accepted.
        ,(format "Transient activation function for Divine %s mode." rname)
        (interactive)
        (push divine--active-mode divine--transient-stack)
+       (divine-continue)
        (,mode-name))
      ;; Definition
      (define-minor-mode ,mode-name

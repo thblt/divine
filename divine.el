@@ -162,7 +162,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
                                                (message "NA? %s" (divine-numeric-argument-p 'noconsume))
                                                (if (divine-numeric-argument-p 'noconsume)
                                                    (divine-then 'divine-goto-line)
-                                                 (divine-g-mode))))
+                                                 (divine-transient-g-mode))))
 (define-key divine-normal-mode-map (kbd "G") 'end-of-buffer)
 ;; Other basic motion
 (define-key divine-normal-mode-map (kbd "a") 'backward-sentence)
