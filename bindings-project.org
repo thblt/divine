@@ -1,0 +1,152 @@
+#+TITLE: Divine default bindings.
+
+* Normal mode
+
+| Key     | Condition            | Type     | Command                                           | See also      |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| =1=     |                      | Prefix   | Numeric argument 1                                |               |
+| =2=     |                      | Prefix   | Numeric argument 2                                |               |
+| =3=     |                      | Prefix   | Numeric argument 3                                |               |
+| =4=     |                      | Prefix   | Numeric argument 4                                |               |
+| =5=     |                      | Prefix   | Numeric argument 5                                |               |
+| =6=     |                      | Prefix   | Numeric argument 6                                |               |
+| =7=     |                      | Prefix   | Numeric argument 7                                |               |
+| =8=     |                      | Prefix   | Numeric argument 8                                |               |
+| =9=     |                      | Prefix   | Numeric argument 9                                |               |
+| =0=     | =numeric-argument-p= | Prefix   | Numeric argument 0                                |               |
+| =0=     | /otherwise/          | Motion   | Go to column zero                                 |               |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| =<SPC>= | =numeric-argument-p= |          |                                                   |               |
+| =<SPC>= | ~register-p~         | Action   | Store point to REGISTER.                          |               |
+| =<SPC>= | /otherwise/          |          | (Leader)                                          |               |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| ="=     |                      |          | Select CHAR as register (abort to unset)          |               |
+| =-=     |                      | Prefix   | Negative argument                                 |               |
+| ===     |                      | Operator | Indent[fn:1]                                      |               |
+| =/=     |                      | Action   | Undo                                              |               |
+| =$=     |                      | Motion   | End of line                                       |               |
+| =^=     |                      | Motion   | Beginning of line                                 |               |
+| =;=     |                      | Action   | ~comment-dwim~                                    |               |
+| =<=     |                      | Motion   |                                                   |               |
+| =>=     |                      | Motion   |                                                   |               |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| =a=     |                      | Motion   | Move ARG sentences backward                       | =e=           |
+| =a=     | ~pending-operator-p~ | Prefix   | Select `around` scope                             |               |
+| =b=     |                      | Motion   | Beginning of ARG words backward                   | =f=           |
+| =c=     |                      | Operator | Change: Delete REGION, then enter insert mode     |               |
+| =d=     |                      | Action   | Delete character at point                         |               |
+| =e=     |                      | Motion   | Move ARG sentences forward                        | =a=           |
+| =f=     |                      | Motion   | End of ARG words forward                          | =f=           |
+| =g=     | ~numeric-argument-p~ | Motion   | Go to line ARG                                    |               |
+| =g=     | /otherwise/          | Mode     | Enter =g= mode                                    |               |
+| =g=     | ~register-p~         | Motion   | Go to REGISTER                                    |               |
+| =h=     |                      |          |                                                   |               |
+| =i=     | /otherwise/          | Modes    | Enter insert mode                                 |               |
+| =i=     | ~pending-operator-p~ |          | Select `inside` scope                             |               |
+| =j=     |                      | Action   | Join ARG lines forward                            | =J=           |
+| =k=     |                      | Operator | Kill REGION into RoKR                             |               |
+| =l=     |                      | Modes    | Transient-activate S-EXP mode                     |               |
+| =m=     |                      | Region   | Toggle mark                                       |               |
+| =n=     |                      | Motion   | Line forward                                      |               |
+| =o=     |                      |          | Open line below point linewise, enter insert mode | =O=           |
+| =p=     |                      | Motion   | line backward                                     |               |
+| =q=     | ~defining-kbd-macro~ | Macros   | Stop recording macro                              | =Q=           |
+| =q=     | /otherwise/          | Macros   | Begin recording macro to REGISTER or default      | =Q=           |
+| =r=     |                      | Motion   | Move after ARGth occurrence of char, forward      | =R=, =t=, =T= |
+| =s=     |                      | Motion   | =isearch-forward=                                 | =S=           |
+| =t=     |                      | Motion   | Move before ARGth occurrence of char, forward     | =T=, =r=, =R= |
+| =u=     |                      |          |                                                   |               |
+| =v=     |                      |          |                                                   |               |
+| =w=     |                      |          | Copy REGION to RoKR                               |               |
+| =x=     |                      |          |                                                   |               |
+| =y=     |                      |          | Insert text from REGISTER                         |               |
+| =z=     |                      | Modes    | Enter folds mode                                  |               |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| =A=     |                      |          |                                                   |               |
+| =B=     |                      | Motion   | ARG characters backward                           |               |
+| =C=     |                      |          |                                                   |               |
+| =D=     |                      |          |                                                   |               |
+| =E=     |                      |          |                                                   |               |
+| =F=     |                      |          | ARG characters forward.                           |               |
+| =G=     |                      |          |                                                   |               |
+| =H=     |                      |          |                                                   |               |
+| =I=     |                      |          |                                                   |               |
+| =J=     |                      | Action   | Join ARG lines backward                           | =j=           |
+| =K=     |                      |          |                                                   |               |
+| =L=     |                      |          |                                                   |               |
+| =M=     |                      |          | Toggle rectangle mark                             |               |
+| =N=     |                      |          |                                                   |               |
+| =O=     |                      |          | Open line above point linewise, enter insert mode | =O=           |
+| =P=     |                      |          |                                                   |               |
+| =Q=     |                      | Macros   | Call macro from REGISTER or default.              |               |
+| =R=     |                      | Motion   | Move after ARGth occurrence of char, backward     | =R=, =t=, =T= |
+| =S=     |                      |          | =isearch-backward=                                | =s=           |
+| =T=     |                      | Motion   | Move before ARGth occurrence of char, backward    |               |
+| =U=     |                      |          |                                                   |               |
+| =V=     |                      |          |                                                   |               |
+| =W=     |                      |          |                                                   |               |
+| =X=     |                      |          |                                                   |               |
+| =Y=     |                      |          |                                                   |               |
+| =Z=     |                      |          |                                                   |               |
+|---------+----------------------+----------+---------------------------------------------------+---------------|
+| =C-g=   |                      |          | ~divine-abort~                                    |               |
+
+** TODO Missing things
+
+It would be cool to have bindings in normal or selection mode to 1)
+build primary/secondary selection from motion or text object 2) swap
+those selections 3) swap their contents.
+
+* Space (leader) mode
+
+| Key | Condition | Type | Command        | See also |
+|-----+-----------+------+----------------+----------|
+| =a= |           |      |                |          |
+| =b= |           |      |                |          |
+| =c= |           |      |                |          |
+| =d= |           |      |                |          |
+| =e= |           |      |                |          |
+| =f= |           |      | ~find-file~    |          |
+| =g= |           |      | ~magit-status~ |          |
+| =h= |           |      |                |          |
+| =i= |           |      |                |          |
+| =j= |           |      |                |          |
+| =k= |           |      |                |          |
+| =l= |           |      |                |          |
+| =m= |           |      |                |          |
+| =n= |           |      |                |          |
+| =o= |           |      | ~sort-lines~   |          |
+| =p= |           |      |                |          |
+| =q= |           |      |                |          |
+| =r= |           |      |                |          |
+| =s= |           |      | ~save-buffer~  |          |
+| =t= |           |      |                |          |
+| =u= |           |      |                |          |
+| =v= |           |      |                |          |
+| =w= |           |      |                |          |
+| =x= |           |      |                |          |
+| =y= |           |      |                |          |
+| =z= |           |      |                |          |
+|     |           |      |                |          |
+
+* S-EXP mode
+
+A mode for balanced expressions.
+
+| Key | Condition | Type | Command | See also |
+|-----+-----------+------+---------+----------|
+|     |           |      |         |          |
+
+* Definitions
+
+- RoKR :: ~Register or Kill-Ring".  If a register was provided with
+  ="=, use it, otherwise use the kill-ring.
+
+* Footnotes
+
+[fn:1] If the buffer is in mode where indentation can be automatically
+determined, apply indentation.  If no indentation rules are known,
+indent or dedent by ARG.  If some indentation depths are legal, cycle
+them.
+
+#  LocalWords:  linewise RoKR ARGth ARG
