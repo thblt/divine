@@ -9,16 +9,25 @@ in your =load-path=, and
   (require 'divine)
 #+end_src
 
-You can now activate divine in each buffer with =M-x divine-mode RET=,
-or globally with =M-x global-divine-mode RET=.  You can also activate
-it globally from your =init.el=:
+You can now activate Divine for every buffer with =M-x
+global-divine-mode RET=, or for the current buffer only with =M-x
+divine-mode RET=.  The global approach is the preferred way; Divine
+provides facilities to customize its initial state per-buffer.
+
+The simplest way to activate Divine is to add this to your init file:
 
 #+begin_src emacs-lisp
   (divine-global-mode)
 #+end_src
 
-* Getting started
+Or with use-package:
 
+#+begin_src emacs-lisp
+  (use-package divine
+     :init (divine-global-mode))
+#+end_src
+
+* Getting started
 
 ** Basic motion
 

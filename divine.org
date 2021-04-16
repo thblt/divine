@@ -16,7 +16,7 @@
 # +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
 # +BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
 
-Divine is a lightweight and extensible modal interface for Emacs, with
+Divine is a *lightweight* and *extensible modal interface for Emacs*, with
 support for Vim-like text objects.  It provides a complete and
 customizable user interface for text editing, inspired by Emacs
 default bindings, and a simple programming interface for designing new
@@ -794,4 +794,4 @@ placeholders:
 
 #  LocalWords:  Uncomment texinfo Thibault Polge thibault docstring docstrings
 #  LocalWords:  customizable keypress modularity statuful accessors
-#  LocalWords:  eg rewrap
+#  LocalWords:  eg rewrap MERCHANTABILITY

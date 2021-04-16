@@ -1,3 +1,7 @@
+* TODO Work on *two* regions
+
+Emacs has primary and secondary selections, so commands like swap,
+etc, could also work on both selections.
 
 * TODO Normal mode for major/minor modes
 
@@ -31,3 +35,8 @@ limited. (What did I mean here?)
 * TODO Support repeated insertion?
 
 Vim can do COUNT i {type something} ESC.
+
+* DONE Restore cursor on abort
+
+Pressing C-g on (divine-read-char) doesn't cleanup after itself. We
+need to hook for that.
