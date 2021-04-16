@@ -23,7 +23,7 @@
 @node Top
 @top Divine User Manual
 
-Divine is a lightweight and extensible modal interface for Emacs, with
+Divine is a @strong{lightweight} and @strong{extensible modal interface for Emacs}, with
 support for Vim-like text objects.  It provides a complete and
 customizable user interface for text editing, inspired by Emacs
 default bindings, and a simple programming interface for designing new
@@ -39,10 +39,10 @@ interfaces from scratch.
     <li>It is always available as an info page from inside your Emacs: eval <code>(info "(divine)")</code></li></ul>
 @end html
 
-This manual is for Divine version 0.0 (git d385092).
+This manual is for Divine version .
 
 @quotation
-Copyright @copyright{} 2020 Thibault Polge <thibault@@thb.lt>
+Copyright @copyright{} 2020-2021 Thibault Polge <thibault@@thb.lt>
 
 You can redistribute this document and/or modify it under the terms
 of the GNU General Public License as published by the Free Software
@@ -60,7 +60,6 @@ General Public License for more details.
 @menu
 * Introduction::
 * Installation::
-* A Tour of Divine::
 * Editing with Divine::
 * Extending Divine::
 * The core Divine framework::
@@ -111,7 +110,7 @@ Key bindings
 
 The core Divine framework
 
-* Starting Divine: Starting Divine (1). 
+* Starting Divine::
 * Modes and normal modes::
 * Creating modes::
 * Activating modes::
@@ -173,6 +172,12 @@ makeinfo --no-split divine.texi -o divine.info
 install-info divine.info --dir=dir
 @end example
 
+or just run
+
+@example
+make
+@end example
+
 Then load Divine from Emacs
 
 @lisp
@@ -181,7 +186,7 @@ Then load Divine from Emacs
 @end lisp
 
 @node Install from Melpa
-@section @strong{DONE} Install from Melpa
+@section @strong{TODO} Install from Melpa
 
 Divine is not yet available from Melpa. When it will be,
 
@@ -191,41 +196,11 @@ Divine is not yet available from Melpa. When it will be,
 @node Install from Git with Straight
 @section @strong{TODO} Install from Git, with Straight
 
-@node A Tour of Divine
-@chapter A Tour of Divine
-
-This chapter is an informal introduction to Divine.
-
-@section Starting Divine
-
-To get started, open any buffer you like and make sure you're in
-normal mode by running @samp{M-x divine-normal-mode RET}. (Divine tries to
-be smart about the mode it starts in, so some buffers may start in
-insert mode)
-
-The minor mode lighter shows the active state.  It should display
-@samp{Divine<N>}.
-
-@section Basic motion
-
-Basic motion is very close to ordinary Emacs commands: @samp{F} will go
-forward one character, @samp{B} backward.  @samp{f} and @samp{b} will move forward
-and backward a word, respectively.
-
-With @samp{p} and @samp{n}, you move to the previous
-and the next visible line, respectively.  @samp{a} and @samp{e} go to the
-beginning and end of the current line, @samp{A} end @samp{E} move through
-sentences.
-
-@samp{isearch} is on @samp{s}, @samp{r} for backwards.  @samp{S} and @samp{R} activate regexp
-search.
-
 @node Editing with Divine
 @chapter Editing with Divine
 
 This section is a complete presentation of the Divine editing
-features.  A less formal, but less complete, presentation can be found
-in @ref{A Tour of Divine}, which is a recommended read.
+features.
 
 People who wish to build their own modal interface over the Divine
 core may skip most of this chapter, but should nonetheless read the
@@ -533,24 +508,6 @@ All predicates default to an always-true value; they thus must all
 evaluate to non-nil at the moment the user triggers a binding for
 their associated command to run.
 
-@defun divine-define-key
-
-Bind KEY to COMMAND in Divine mode MODE@.
-
-MODE is the short name of a Divine mode, like ’normal or ’insert.
-
-STATE is a predicate that depends of the current
-interactive state of Divine.  It usually corresponds to the
-type of the command.
-
-EMACS-MODE is a symbol identifying an Emacs major or minor
-mode.
-
-Bindings are compiled by ‘divine-compile-bindings’, which see.
-
-(fn MODE KEY COMMAND &key ((:mode EMACS-MODE) 't) ((:state STATE) 't) ((:when PRED) 't))
-@end defun
-
 @quotation Notice
 The @code{:type} of a binding is only used to choose between multiple
 bindings on the same key.  It has no effect on the actual command
@@ -615,43 +572,8 @@ Bindings are evaluated in the order defined by the variable
 
 The easiest way to create an action is the @code{divine-defaction} macro.
 
-@defmac divine-defaction
-
-Define an action NAME for Divine.
-
-An action is similar to an operator that doesn’t need a region.
-It is legal whenever an operator is, but is never pending.
-
-(fn NAME DOCSTRING &rest BODY)
-@end defmac
-
 @node Creating operators
 @section Creating operators
-
-@defmac divine-defoperator
-
-Define a Divine operator NAME with doc DOCSTRING@.
-
-BODY is the code of the operator.  It should work on the region,
-whether it’s active or not, by reading ‘(region-beginning)’
-and ‘(region-end)’.
-
-The region may be empty, if this is an issue for your command,
-wrap in ‘(unless (eq (point) (mark)) @dots{})’.
-
-Operators need not check anything about the runtime Divine state,
-although they can of course access the state variables they need
-to adjust their behavior.  To do so, please only use the divine-
-accessors, like ‘divine-numeric-argument’, which will correctly
-consume the state variables.  Notice that if the operator runs
-after having been pending, it will read state after the motion
-that created the region, so part of the state may have already
-been consumed.
-
-BODY will only be executed if and when the operator runs.
-
-(fn NAME DOCSTRING &rest BODY)
-@end defmac
 
 To access the prefix argument from within an operator, see
 @ref{Using the numeric argument}.
@@ -675,7 +597,7 @@ dependencies besides Emacs itself.  This chapter describes what it
 provides, and how you can write custom modal interfaces over it.
 
 @menu
-* Starting Divine: Starting Divine (1). 
+* Starting Divine::
 * Modes and normal modes::
 * Creating modes::
 * Activating modes::
@@ -686,7 +608,7 @@ provides, and how you can write custom modal interfaces over it.
 * Key binding interface internals::
 @end menu
 
-@node Starting Divine (1)
+@node Starting Divine
 @section Starting Divine
 
 Divine is defined as a minor mode, @samp{divine-mode}.
@@ -750,39 +672,6 @@ binding to enter normal mode.
 
 Modes are created using the @samp{divine-defmode} macro.
 
-@defmac divine-defmode
-
-Define the Divine mode NAME, with documentation DOCSTRING@.
-
-NAME is a short identifier, like normal or insert.
-
-The following optional keyword arguments are accepted.
-
-@itemize
-@item
-‘:cursor’ The cursor style for this mode, as a valid argument
-for ‘set-cursor’, which see.
-
-@item
-‘:cursor-color’ The cursor color for this mode, as an hex
-string or en Emacs color name.
-
-@item
-‘:lighter’ The mode lighter.
-
-@item
-‘:mode-name’ The actual Emacs mode name.   This defaults to divine-NAME-mode.
-
-@item
-‘:rname’ A readable name for the mode, as a string.
-
-@item
-‘:transient-fn’ The name of the function used to temporarily activate the mode.
-@end itemize
-
-(fn NAME DOCSTRING &key CURSOR CURSOR-COLOR LIGHTER MODE-NAME TRANSIENT-FN RNAME)
-@end defmac
-
 @subsection @strong{TODO} Cursor appearance
 
 To make modes visually distinguishable, they can define a cursor appearance.
@@ -815,11 +704,6 @@ It seems natural that modes entered when an operator is pending be
 deactivated when the operator gets executed or evaluated.
 @strong{operator-transient activation} does exactly this.  This is the
 default behavior for all modes.
-
-@defvar divine--transient-stack
-
-Stack of modes to restore after a transient operation.
-@end defvar
 
 @node State and keeping state
 @section State and keeping state
@@ -856,20 +740,6 @@ erased as soon as a command has been run.
 These two operations are performed by a @samp{post-command-hook}, and are
 controlled by the variable @samp{divine--continue}, itself controlled by
 the function divine-continue.
-
-@defvar divine--continue
-
- Whether the Divine state must be preserved at the end of the
-command loop.  This variable should be set by ‘divine-continue’,
-which see.
-
-When inspected interactively, this variable is always nil.
-@end defvar
-
-@defun divine-continue
-
-Make unconsumed Divine state variables persist after the current command.
-@end defun
 
 In normal use, @samp{divine-continue} is called by actions that
 @emph{accumulate} states:
@@ -912,19 +782,6 @@ new state parameters. To do so, you need to create a function that
 will reset those variables to a base value, and add this function
 to @samp{divine-clear-state-functions}.
 
-@defvar divine-clear-state-functions
-
-Functions to call for dropping buffer state.
-
-If you add state variables for your custom commands, create a
-function to clear them (return them to their initial value) and
-add it to this list.  Don’t erase the initial value or you will
-break Divine.
-
-Functions in this list should accept, and ignore, any number of
-arguments.
-@end defvar
-
 @node Operators and the pending operator state
 @section Operators and the pending operator state
 
@@ -965,41 +822,7 @@ next motion command.
 Operators can be defined either from scratch, with the
 @samp{divine-defoperator} macro:
 
-@defmac divine-defoperator
-
-Define a Divine operator NAME with doc DOCSTRING@.
-
-BODY is the code of the operator.  It should work on the region,
-whether it’s active or not, by reading ‘(region-beginning)’
-and ‘(region-end)’.
-
-The region may be empty, if this is an issue for your command,
-wrap in ‘(unless (eq (point) (mark)) @dots{})’.
-
-Operators need not check anything about the runtime Divine state,
-although they can of course access the state variables they need
-to adjust their behavior.  To do so, please only use the divine-
-accessors, like ‘divine-numeric-argument’, which will correctly
-consume the state variables.  Notice that if the operator runs
-after having been pending, it will read state after the motion
-that created the region, so part of the state may have already
-been consumed.
-
-BODY will only be executed if and when the operator runs.
-
-(fn NAME DOCSTRING &rest BODY)
-@end defmac
-
 Or they can be defined by wrapping an existing action:
-
-@defmac divine-wrap-operator
-
-Wrap the Emacs command COMMAND as a Divine operator.
-
-The resulting operotar is called divine-NAME@.
-
-(fn COMMAND &key)
-@end defmac
 
 @node Motions and objects
 @section Motions and objects
@@ -1043,53 +866,6 @@ and that they're are two of them. This is not a strong requirement:
 you don't need to use that macro to use Divine, and you can implement
 motions the way you see fit.
 
-@defmac divine-defobject
-
-Define the object NAME documented with DOCSTRING@.
-
-Two functions will be created: divine-NAME-forward and
-divine-NAME-backward.  They will behave as a regular motion,
-unless the ’inside or ’around scope is activated.
-
-The object is constructed with objects passed as keyword arguments:
-
-@itemize
-@item
-FORWARD is a command that moves the point to the next object
-@end itemize
-of this motion.
-@itemize
-@item
-BACKWARD is FORWARD in reverse; if absent, forward is called
-@end itemize
-with a reversed argument.
-@itemize
-@item
-BEGINNING moves point to the beginning of the object at point.
-
-@item
-END moves point to the end of the object at point.
-
-@item
-EXTEND-BEFORE moves the point from the beginning of the object
-@end itemize
-in a way that makes sense in the context of the ’around
-modifier.  If empty, it defaults to (BACKWARD) (END).
-@itemize
-@item
-EXTEND-AFTER is the same in reverse, and defaults
-@end itemize
-to (FORWARD) (BEGINNING).
-@itemize
-@item
-SPECIAL is a function that receives the pending operator (as a
-symbol) and return another symbol that gets run as the actual
-operator.  Default is ‘identity’.
-@end itemize
-
-(fn NAME DOCSTRING &key FORWARD BACKWARD BEGINNING END (EXTEND-BEFORE 'ignore) (EXTEND-AFTER 'ignore) (SPECIAL 'identity))
-@end defmac
-
 @node Special objects
 @subsection Special objects
 
@@ -1103,37 +879,12 @@ it extra state as needed, to make something, well, special.
 To implement a special object manually, call
 @samp{divine-swap-pending-operator} before returning.
 
-@defun divine-swap-pending-operator
-
-Replace the pending operator with an operator picked from REPL@.
-
-REPL is either a list of pair of symbols (FROM . TO), where FROM
-is the active operator, and TO its replacement, or a function
-that takes an operator symbol and returns a replacement
-operator, or nil.
-
-If no replacement is found, the currently pending operator remains.
-
-(fn REPL)
-@end defun
-
 @node Scopes internals
 @section Scopes internals
 
 The standard scope modifiers @samp{around} and @samp{inside} are not part of the
 core.  All the core provides is a scope definition macro,
 @samp{divine-defscope}.
-
-@defmac divine-defscope
-
-Define the Divine scope modifier NAME@.
-
-This macro generates three functions: ‘divine-scope-NAME-select’
-to activate the scope if no other scope is already selected,
-‘divine-scope-NAME-force’ to activate it, optionally replacing an
-existing scope, and ‘divine-scope-NAME-flag’, to read and consume
-the scope.
-@end defmac
 
 @node Key binding interface internals
 @section Key binding interface internals
