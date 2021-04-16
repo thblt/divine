@@ -1,6 +1,6 @@
 ;;; divine.el --- Modal interface with text objects, or something close enough  -*- lexical-binding: t; coding: utf-8 -*-
 
-;; Copyright (c) 2020 Thibault Polge <thibault@thb.lt>
+;; Copyright (c) 2020-2021 Thibault Polge <thibault@thb.lt>
 
 ;; Author: Thibault Polge <thibault@thb.lt>
 ;; Maintainer: Thibault Polge <thibault@thb.lt>

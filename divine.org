@@ -37,7 +37,7 @@ interfaces from scratch.
 This manual is for Divine version call_version().
 
 #+BEGIN_QUOTE
-  Copyright \copy 2020 Thibault Polge <thibault@thb.lt>
+  Copyright \copy 2020-2021 Thibault Polge <thibault@thb.lt>
 
   You can redistribute this document and/or modify it under the terms
   of the GNU General Public License as published by the Free Software
