@@ -33,7 +33,7 @@
 
 ;;; Misc
 
-(defun divine--toggle-pending-operator-indicator ()
+(defun divine-toggle-pending-operator-indicator ()
   "Blink the cursor faster if Divine is in pending operator
 state, restore blink speed otherwise."
   (if (divine-pending-operator-p)
@@ -87,7 +87,6 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 
 (defun divine-abort ()
   "Do the first of these things whose condition holds:
-
  - If region is active: deactivate the mark.
  - If a transient mode is activated, return to the caller mode. @FIXME Unimplemented.
  - If an operator is pending: unset it, and clear state.
@@ -158,8 +157,13 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 (define-key divine-normal-mode-map (kbd "N") 'forward-paragraph)
 ;; Buffer motion
 ;; FIXME (define-key divine-normal-mode-map (kbd "g") 'divine-goto-line :state 'numeric-argument)
-(define-key divine-normal-mode-map (kbd "g") 'divine-transient-g-mode)
-(define-key divine-normal-mode-map (kbd "G") 'divine-end-of-buffer)
+(define-key divine-normal-mode-map (kbd "g") (defun divine-goto-or-g-mode ()
+                                               (interactive)
+                                               (message "NA? %s" (divine-numeric-argument-p 'noconsume))
+                                               (if (divine-numeric-argument-p 'noconsume)
+                                                   (divine-then 'divine-goto-line)
+                                                 (divine-g-mode))))
+(define-key divine-normal-mode-map (kbd "G") 'end-of-buffer)
 ;; Other basic motion
 (define-key divine-normal-mode-map (kbd "a") 'backward-sentence)
 (define-key divine-normal-mode-map (kbd "e") 'forward-sentence)
@@ -207,7 +211,6 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
 ;ish bindings
 (define-key divine-normal-mode-map (kbd "SPC s") 'save-buffer)
 (define-key divine-normal-mode-map (kbd "SPC o") 'divine-sort-lines)
-(define-key divine-normal-mode-map (kbd "SPC s") 'save-buffer)
 (define-key divine-normal-mode-map (kbd "SPC p p") 'projectile-switch-project)
 (define-key divine-normal-mode-map (kbd "SPC p f") 'projectile-find-file)
 

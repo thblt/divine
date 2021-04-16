@@ -232,11 +232,15 @@ If pasting from the kill-ring, this function pretends to be
       ,@body)))
 
 ;;;; Character motion
-
-
-
 ;;;; Line motion
 
+(defun divine-goto-line ()
+  "Goto line ARG."
+  (interactive)
+  ;; We test, because (divine-numeric-argument) returns 1 if the user
+  ;; gave no arg.
+  (when (divine-numeric-argument-p 'noconsume)
+    (goto-line (divine-numeric-argument))))
 
 
 ;;;; Buffer motion
@@ -244,6 +248,29 @@ If pasting from the kill-ring, this function pretends to be
 
 ;;;; Word motion
 
+;; @FIXME We need linewise motion.
+
+(defun divine-word-start ()
+  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
+  (interactive)
+  (let ((beg (car (bounds-of-thing-at-point 'word))))
+    (if beg
+        (goto-char beg)
+      (backward-word))))
+
+(defun divine-word-end ()
+  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
+  (interactive)
+  (let ((beg (cdr (bounds-of-thing-at-point 'word))))
+    (if beg
+        (goto-char beg)
+      (forward-word))))
+
+(divine-defobject word "Move by words."
+                  :forward forward-word
+                  :backward backward-word
+                  :beginning divine-word-start
+                  :end divine-word-end)
 
 ;;;; Search
 
@@ -290,7 +317,38 @@ If pasting from the kill-ring, this function pretends to be
 ;;;; Folds and outline
 
 
-;;;; Balanced expressions (Lisp-mode)
+;;;; Balanced expressions (Smartparens)
+
+(defun divine-sexp-motion ()
+  "S-exp motion.
+
+Select the NTH-level balanced expression around point, delimited
+by CHAR.  If INSIDE, select everything inside the delimiters.  If
+AROUND, select the delimiters as well.
+
+This is a magical-ish motion that acts on balanced s-expressions,
+courtesy of smartparens.
+
+Without a scope, pending `divine-kill' or `divine-change' are
+replaced by `divine-sexp-kill' and `divine-sexp-change',
+respectively."
+  (unless (divine-scope-p t)
+    (divine-operator-swap-pending
+     '((divine-kill . divine-delimiter-kill)
+       (divine-change . divine-delimiter-change))))
+  ;; @TODO
+  )
+
+(divine-defoperator divine-delimiter-kill
+  "Kill the outermost delimiters of REGION, effectively unwrapping it."
+  ;; @TODO
+  )
+
+(divine-defoperator divine-delimiter-change
+  "Prompt for delimiters and insert them instead of the current
+  delimiters of REGION, effectively rewrapping it."
+;; @TODO
+  )
 
 ;;;; Join lines?
 
@@ -387,10 +445,6 @@ is active, toggle rectangle mode"
   "Execute macro from REGISTER COUNT times."
   (interactive)
   (kmacro-call-macro (divine-numeric-argument nil) nil ))
-
-;;; Hybrids
-
-
 
 ;;; Misc utilities
 

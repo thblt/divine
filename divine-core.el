@@ -190,13 +190,14 @@ close enough."
 (defun divine-post-command-hook ()
   "Finalize pending operators."
   ;; Run pending operator, if any.
+                                        ;(message "PA: %s %s Cont: %s" prefix-arg current-prefix-arg divine--continue)
   (when (and (divine-pending-operator-p)
              (not (eq (point) (mark))))
     (divine-operator-run-pending))
   ;; Drop or persist state
   (if divine--continue
       (progn
-        (setq prefix-arg current-prefix-arg)
+        (setq current-prefix-arg prefix-arg)
         (setq divine--continue nil))
     (divine-clear-state)))
 
@@ -227,7 +228,7 @@ close enough."
   (while divine--transient-stack
     (funcall (pop divine--transient-stack) t)))
 
-;;;; Working with pending operators
+;;;; Pending operators
 
 (defun divine-operator-set-pending (operator)
   "Set OPERATOR as pending.  If nil, unset the pending operator.
@@ -271,6 +272,24 @@ pending, execute the default object from
     (call-interactively divine--pending-operator)
     (divine-clear-state)
     (divine-terminate)))
+
+(defun divine-operator-swap-pending (repl)
+  "Replace the pending operator with an operator picked from REPL.
+
+REPL is either a list of pair of symbols (FROM . TO), where FROM
+is the active operator, and TO its replacement, or a function
+that takes an operator symbol and returns a replacement
+operator, or nil.
+
+If no replacement is found, the currently pending operator remains."
+  (when-let (op (divine-pending-operator-p))
+    (divine-operator-select
+     (or
+      (when (functionp repl)
+        (funcall repl))
+      (when (listp repl)
+        (alist-get operator repl))
+      op))))
 
 (defun divine-operator-abort ()
   "Abort the pending operator, if any."
@@ -600,45 +619,49 @@ been consumed."
 
 ;;;; Motion/objects definition interface
 
-
-;; This works more or less, but is a bit broken.  With a scope
+;; FIXME This works more or less, but is a bit broken.  With a scope
 ;; modifier, if we start *between* words with forward, it selects the
 ;; word before.  To fix this:
 ;;
 ;; - Add a :predicate argument to determine if we're actually on a
 ;;   THING, and decide what to do from here.  bounds-of-thing-at-point
 ;;   works (it returns nil or a pair).
+;;   => DON'T bounds-of-thing-at-point is too broad, it returns something even on a space between words.
 
-(defmacro divine--defobject1 (name docstring forward backward beginning end extend-before extend-after)
-  "Generate a function body for divine-defobject."
+(defmacro divine--defobject1 (name docstring reversed forward backward beginning end extend-before extend-after)
+  "Generate a function body for divine-defobject.
+
+If REVERSED is non-nil, we behave as a backward function."
   `(defun ,name ()
      (interactive)
-     (let ((point))
-       (divine-with-numeric-argument
-        (message "%s" times)
+     (divine-with-numeric-argument
+      (let ((the-right-way (eq ,reversed negative))
+            (point))
+        (message "%s times, the right way? %s" times the-right-way)
         (if (not (divine-scope-p 'noconsume))
             ;; Just a motion
-
-            (if positive
+            (if the-right-way
                 (,forward times)
               (,backward times))
           ;; There's a scope.
-          ;; We start by moving back to the beginning
-          (if positive (,beginning) (,end))
-          (setq point (point))
+
+          ;; We move to the first end
+          (if the-right-way
+              (,beginning)
+            (,end))
+
           ;; Are we *around*? If so, we get there.
-          (when (divine-scope-around-p 'noconsume)
-            (if positive (,extend-before) (,extend-after)))
-          (push-mark)
-          (activate-mark)
-          ;; Restore
-          (goto-char point)
+          (save-excursion
+            (when (divine-scope-around-p 'noconsume)
+              (if the-right-way (,extend-before) (,extend-after)))
+            (push-mark)
+            (activate-mark))
           ;; Moving
-          (if positive (,forward times) (,backward times))
-          (if positive (,end) (,beginning))
+          (if the-right-way (,forward times) (,backward times))
+          (if the-right-way (,end) (,beginning))
           ;;
           (when (divine-scope-around-p)
-            (if positive (,extend-after) (,extend-before))))))))
+            (if the-right-way (,extend-after) (,extend-before))))))))
 
 (cl-defmacro divine-defobject
     (name docstring &key forward backward beginning end (extend-before 'ignore) (extend-after 'ignore) (special 'identity))
@@ -648,7 +671,7 @@ Two functions will be created: divine-NAME-forward and
 divine-NAME-backward.  They will behave as a regular motion,
 unless the 'inside or 'around scope is activated.
 
-The object is constructed with objects passed as keyword arguments:
+The object is constructed with the following keyword arguments:
 
 - FORWARD is a command that moves the point to the next object
 of this motion.
@@ -662,13 +685,23 @@ modifier.  If empty, it defaults to (BACKWARD) (END).
 - EXTEND-AFTER is the same in reverse, and defaults
 to (FORWARD) (BEGINNING).
 - SPECIAL is a function that receives the pending operator (as a
-                                                               symbol) and return another symbol that gets run as the actual
-operator.  Default is `identity'."
-  (let ((name-forward (intern (format "divine-%s-forward" name)))
-        (name-backward (intern (format "divine-%s-backward" name))))
-    `(divine--defobject1
-      ,name-forward
+  symbol) and return another symbol that gets run as the actual
+  operator.  Default is `identity'." ; TODO Verify that we document special objecs somewhere.
+  `(progn
+     (divine--defobject1
+      ,(intern (format "divine-%s-forward" name))
       ,docstring
+      nil
+      ,forward
+      ,backward
+      ,beginning
+      ,end
+      ,extend-before
+      ,extend-after)
+     (divine--defobject1
+      ,(intern (format "divine-%s-backward" name))
+      ,docstring
+      t
       ,forward
       ,backward
       ,beginning
@@ -676,62 +709,11 @@ operator.  Default is `identity'."
       ,extend-before
       ,extend-after)))
 
-(divine-defobject word "Move by words."
-  :forward forward-word
-  :backward backward-word
-  :beginning divine-word-start
-  :end divine-word-end)
-
-(defun divine-word-start ()
-  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
-  (interactive)
-  (let ((beg (car (bounds-of-thing-at-point 'word))))
-    (if beg
-        (goto-char beg)
-      (backward-word))))
-
-(defun divine-word-end ()
-  "Move point to the beginning of word at point, or the previous word if point isn't on a word."
-  (interactive)
-  (let ((beg (cdr (bounds-of-thing-at-point 'word))))
-    (if beg
-        (goto-char beg)
-      (forward-word))))
-
-(defun test ()
-  (interactive)
-  (setq current-prefix-arg 3)
-  (divine-scope-inside-force)
-  (divine-word-backward)
-  )
-
-(local-set-key (kbd "<f11>") 'test)
 (defun divine-create-standard-scopes ()
   "Create the standard scopes required by motions created by `divine-defobject'."
   (divine-defscope 'inside)
   (divine-defscope 'around)
   )
-
-(defun divine-swap-pending-operator (repl)
-  "Replace the pending operator with an operator picked from REPL.
-
-REPL is either a list of pair of symbols (FROM . TO), where FROM
-is the active operator, and TO its replacement, or a function
-that takes an operator symbol and returns a replacement
-operator, or nil.
-
-If no replacement is found, the currently pending operator remains."
-  (when divine--pending-operator
-    (setq divine--pending-operator
-          (or
-           (when (functionp repl)
-             (funcall repl))
-           (when (listp repl)
-             (alist-get divine--pending-operator))
-           divine--pending-operator))))
-
-
-
 
 ;;;; Cursor handling
 
@@ -745,17 +727,26 @@ restore them after current command returns."
 
 (defun divine-read-char (&optional prompt)
   "Show PROMPT, read a single character interactively, and return it."
-  (let ((ct cursor-type))
-    (when divine-read-char-cursor (setq cursor-type divine-read-char-cursor)
-          (if prompt (message "%s" prompt))
-          (let ((char (read-char)))
-            (if prompt (message "%s%c" prompt char))
-            (setq cursor-type ct)
-            char))))
+  (let ((inhibit-quit t)
+        (ct cursor-type)
+        (char))
+    (when divine-read-char-cursor (setq cursor-type divine-read-char-cursor))
+    (when prompt (message "%s" prompt))
+    (with-local-quit
+      (setq char (read-char))
+      (when prompt (message "%s%c" prompt char)))
+    (setq cursor-type ct
+          inhibit-quit nil)
+    char))
 
-(defcustom divine-flash-function 'divine-flash
-  "The function used to display mode changes."
-  :type 'function)
+(defun divine-then (command)
+  "Execute COMMAND interactively, as if it was called by the user."
+  (setq this-command command)
+  (call-interactively command))
+
+(defun divine-const (x)
+  "Returns a function that ignores all arguments and return X."
+  (lambda (&rest _) x))
 
 ;;; Debug and information
 
@@ -779,6 +770,7 @@ restore them after current command returns."
   "Print a message describing the Divine state for the active buffer.
 
 If ARG is non-nil, copy the message to the kill ring."
+  ;; @FIXME This uses variables from divine.el, move it there?
   (interactive "P")
   (let ((message
          (format
@@ -813,7 +805,6 @@ Motion scope: %s"
       (with-temp-buffer
         (insert message)
         (kill-ring-save (point-min) (point-max))))))
-;; @TODO This uses variables from divine.el, move it there?
 
 ;;; Conclusion
 
