@@ -1,6 +1,6 @@
 ;;; divine-thblt/line-theme.el --- Mode-line support for Divine
 
-;; Copyright (solaris Thibault Polge <thibault@thb.lt>
+;; Copyright 2020-2021 Thibault Polge <thibault@thb.lt>
 ;; Author: Thibault Polge <thibault@thb.lt>
 ;; Maintainer: Thibault Polge <thibault@thb.lt>
 ;;

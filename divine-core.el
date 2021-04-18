@@ -124,10 +124,16 @@ The point of this variable is to make sure that even if a
 motion/object command produced an empty region, the operator will
 run over it (probably doing nothing) and the pending operator
 state will be terminated.")
-;; @TODO Make this behavior configurable. This can happen, for
+;; @FIXME Make this behavior configurable. This can happen, for
 ;; example, using the end-of-line motion when already at the end of
 ;; the line.  What should happen in such case should be
 ;; user-configurable.
+;; @FIXME Does this make sense?  Two cases:
+;;  - A basic Emacs motion kept the point where it is.
+;;  - A Divine object created an empty region.
+;;
+;; This can be useful for functions like [c]hange
+;; @FIXME I don't believe we actually use this variable.
 
 (defvar-local divine--pending-operator nil
   "The operator waiting for a motion.")
@@ -190,7 +196,6 @@ close enough."
 (defun divine-post-command-hook ()
   "Finalize pending operators."
   ;; Run pending operator, if any.
-                                        ;(message "PA: %s %s Cont: %s" prefix-arg current-prefix-arg divine--continue)
   (when (and (divine-pending-operator-p)
              (not (eq (point) (mark))))
     (divine-operator-run-pending))
@@ -217,12 +222,13 @@ close enough."
 
 (defun divine--clear-state ()
   "Restore base state."
+  ;; @FIXME I removed the code that reset the prefix arg. I'm not sure
+  ;; what to do with this.
   (mapc (lambda (m) (funcall m t))
         divine--transient-stack)
-  (setq divine--transient-stack nil)
-  (setq divine--ready-for-operator nil
-        prefix-arg nil
-        current-prefix-arg nil)
+  (setq divine--transient-stack nil
+        divine--object-scope nil
+        divine--ready-for-operator nil)
   (when divine--pending-operator
     (divine-operator-set-pending nil)))
 
@@ -400,8 +406,8 @@ numeric argument reversed.
 
 COMMAND must be quoted.
 
-If NAME isn't provided, it's calculated with
-`divine--reverse-direction-words'."
+If NAME is nil, it's generated with
+`divine--reverse-direction-words', which see."
   (setq command (eval command))
   (unless (symbolp command) (error "COMMAND must be a symbol."))
   (unless name ; Guess name
@@ -427,7 +433,7 @@ OTHER-WORD swapped"
 
 (defun divine--reverse-direction-words (STRING)
   "In STRING replace forward by backward, next by prev,
-and conversely, and return the modified symbol."
+left by right, and conversely, and return the modified symbol."
   (with-temp-buffer
     (insert STRING)
     (dolist (pair '(("next" . "previous")
@@ -641,7 +647,6 @@ If REVERSED is non-nil, we behave as a backward function."
      (divine-with-numeric-argument
       (let ((the-right-way (eq ,reversed negative))
             (point))
-        (message "%s times, the right way? %s" times the-right-way)
         (if (not (divine-scope-p 'noconsume))
             ;; Just a motion
             (if the-right-way
@@ -715,8 +720,10 @@ to (FORWARD) (BEGINNING).
 
 (defun divine-create-standard-scopes ()
   "Create the standard scopes required by motions created by `divine-defobject'."
-  (divine-defscope 'inside)
-  (divine-defscope 'around)
+  ;; @FIXME @XXX Duplicated from divine-commands, also make core depend on
+  ;; command, which defines defscope. BAD.
+  (divine-defscope inside)
+  (divine-defscope around)
   )
 
 ;;;; Cursor handling
@@ -724,7 +731,6 @@ to (FORWARD) (BEGINNING).
 (defun divine--set-cursor (&optional style color)
   "Set cursor to STYLE and COLOR, if set, and install a hook to
 restore them after current command returns."
-
   ) ; @FIXME
 
 ;;; Misc utilities
@@ -787,6 +793,7 @@ Transient mode stack: %s
 Pending operator: %s
 Ready for operator: %s
 current-prefix-arg: %s
+prefix-arg: %s
 selected register: %s
 Point and mark: (%s %s)
 Emacs region active: %s
@@ -800,6 +807,7 @@ Motion scope: %s"
           divine--pending-operator
           divine--ready-for-operator
           current-prefix-arg
+          prefix-arg
           divine--register
           (point) (mark)
           (region-active-p)

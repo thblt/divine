@@ -78,11 +78,14 @@ the scope."
 This won't have any effect is another scope is already selected." name)
          (interactive)
          (unless divine--object-scope
-           (setq divine--object-scope ',name)))
+           (setq divine--object-scope ',name))
+         (divine-continue))
+
        (defun ,force-fn ()
          ,(format "Replace currently selected scope with '%s." name)
          (interactive)
-         (setq divine--object-scope ',name))
+         (setq divine--object-scope ',name)
+         (divine-continue))
        (defun ,pred-fn (&optional noconsume)
          ,(format "Return non-nil if Divine scope %s is selected, then consume it.
 
@@ -278,7 +281,8 @@ If pasting from the kill-ring, this function pretends to be
                   :beginning divine-word-start
                   :end divine-word-end)
 
-;;;; Search
+
+;;;; SEARCH
 
 (defun divine--find-char-helper (after)
   "Helper for divine-find-char-*[-after]"
