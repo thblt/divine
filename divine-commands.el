@@ -234,6 +234,12 @@ If pasting from the kill-ring, this function pretends to be
 ;;;; Character motion
 ;;;; Line motion
 
+(divine-defobject line "Move by line."
+                  :forward forward-line
+                  :backward previous-line
+                  :beginning beginning-of-line
+                  :end end-of-line)
+
 (defun divine-goto-line ()
   "Goto line ARG."
   (interactive)
