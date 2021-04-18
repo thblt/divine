@@ -1,3 +1,11 @@
+
+* TODO Special cases
+
+Org, among others, use dedicated functions to traverse certain
+objects, eg =org-forward-sentence=.  Divine motions should use these
+functions when applicable, either by checking for =remap=s in keymaps,
+or manually.
+
 * TODO Work on *two* regions
 
 Emacs has primary and secondary selections, so commands like swap,
