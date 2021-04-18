@@ -158,6 +158,7 @@ When inspected interactively, this variable is always nil.")
 
 ;;;; Control mode
 
+;;; ### autoload
 (define-minor-mode divine-mode
   "Divine, a modal interface with text objects, or something
 close enough."
@@ -189,6 +190,7 @@ close enough."
     (divine--disable-modes nil)
     (divine-clear-state)))
 
+;;; ### autoload
 (define-globalized-minor-mode divine-global-mode divine-mode divine-mode)
 
 ;;;; Command loop
