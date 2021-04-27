@@ -97,7 +97,8 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
         ((divine-pending-operator-p) (divine-operator-abort))
         ;; @FIXME Implement transient mode deactivation.
         ((not divine-normal-mode) (divine-normal-mode))
-        (t (divine-clear-state))))
+        (t (progn (divine-clear-state)
+                  (divine-then 'keyboard-quit)))))
 
 ;;; Utility for normal modes
 
