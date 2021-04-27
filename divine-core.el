@@ -753,8 +753,9 @@ restore them after current command returns."
 
 (defun divine-then (command)
   "Execute COMMAND interactively, as if it was called by the user."
-  (setq this-command command)
-  (call-interactively command))
+  (let ((command (command-remapping command)))
+    (setq this-command command)
+    (call-interactively command)))
 
 (defun divine-const (x)
   "Returns a function that ignores all arguments and return X."
