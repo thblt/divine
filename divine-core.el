@@ -304,6 +304,7 @@ If no replacement is found, the currently pending operator remains."
 
 (defun divine-operator-abort ()
   "Abort the pending operator, if any."
+  ;; @FIXME Do we use this?
   (when (divine-pending-operator-p)
     (divine-operator-set-pending nil)
     (divine-clear-state)))
