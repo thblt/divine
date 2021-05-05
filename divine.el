@@ -120,7 +120,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   (define-key mode "9" 'digit-argument)
   (define-key mode "-" 'negative-argument)
   (define-key mode "\"" 'divine-select-register)
-  (define-key mode [remap keyboard-quit] 'divine-abort))
+  (define-key mode (kbd "C-g") 'divine-abort))
 
 ;;; Normal mode
 
@@ -259,7 +259,7 @@ Interactively, or if BUFFER isn't specified, default to (current-buffer)."
   "Emacs-like mode for Divine."
   :cursor 'bar)
 
-(define-key divine-insert-mode-map [remap keyboard-quit] 'divine-abort)
+(define-key divine-insert-mode-map (kbd "C-g") 'divine-abort)
 
 ;;; Off mode
 
